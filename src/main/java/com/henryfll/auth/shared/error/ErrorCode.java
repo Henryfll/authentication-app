@@ -30,7 +30,10 @@ public enum ErrorCode {
   PERMISSION_NOT_FOUND(ErrorType.NOT_FOUND, "Permission not found"),
   PERMISSION_ALREADY_EXISTS(ErrorType.CONFLICT, "Permission already exists"),
   ROLE_NOT_FOUND(ErrorType.NOT_FOUND, "Role not found"),
-  ROLE_ALREADY_EXISTS(ErrorType.CONFLICT, "Role already exists");
+  ROLE_ALREADY_EXISTS(ErrorType.CONFLICT, "Role already exists"),
+
+  // Módulo access
+  ACCESS_NOT_FOUND(ErrorType.NOT_FOUND, "Access not found");
 
   private final ErrorType type;
   private final String title;

@@ -403,9 +403,9 @@ En el arranque inicial (migración + `ApplicationRunner`) se crean la aplicació
 |---|---|
 | **0. Base** | Esqueleto Maven + Spring Boot 4, Docker Compose, Flyway, CI, manejo global de errores, OpenAPI, ArchUnit |
 | **1. Usuarios y aplicaciones** | Módulos `user` y `apps`: entidades, migraciones, CRUD de administración, seed de `auth-admin`. Los endpoints de administración quedan **sin proteger hasta la fase 3** |
-| **2. Acceso** | Módulo `access`: concesiones, vigencia, asignación de roles, `/users/me/applications` |
+| **2. Acceso** | Módulo `access`: concesiones, vigencia, asignación de roles y bootstrap del primer `SUPER_ADMIN`. El caso de uso de `/users/me/applications` queda listo; el endpoint se expone en la fase 3, cuando haya usuario autenticado |
 | **3. Autenticación** | Login por cliente, JWT RS256 con roles y permisos, JWKS, `/users/me`, autorización de endpoints de administración |
-| **4. Sesiones** | Refresh con rotación y detección de reutilización, cookie (web) o body (móvil), logout, logout-all, gestión de sesiones |
+| **4. Sesiones** | Refresh con rotación y detección de reutilización, cookie (web) o body (móvil), logout, logout-all, gestión de sesiones. Revocación de las sesiones al suspender o revocar un acceso (§5.4, regla 2) |
 | **5. Endurecimiento** | Rate limiting, bloqueo de cuenta, auditoría completa, cambio de contraseña |
 | **Futuro** | Verificación de email, recuperación de contraseña por email, MFA (TOTP), login social, SSO entre aplicaciones / migración a Spring Authorization Server, token exchange para clientes `SERVICE` |
 
