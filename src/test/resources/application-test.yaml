@@ -5,3 +5,17 @@ spring:
 logging:
   level:
     com.henryfll.auth: INFO
+app:
+  security:
+    jwt:
+      issuer: http://auth.test
+      allow-ephemeral-key: true
+    cors:
+      origins-cache-ttl: 0s
+    # Todos los tests llegan desde 127.0.0.1: límites por IP muy altos. Los límites por email
+    # (claves únicas en cada test) se dejan como en producción.
+    rate-limit:
+      login-by-ip:
+        capacity: 100000
+      refresh-by-ip:
+        capacity: 100000

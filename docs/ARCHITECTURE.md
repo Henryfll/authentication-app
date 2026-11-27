@@ -32,7 +32,7 @@ Servicio centralizado de **identidad y control de acceso** que:
 | Tokens | Spring Security OAuth2 Resource Server (Nimbus JOSE) — **JWT RS256** | Firma asimétrica: las aplicaciones validan con la clave pública |
 | Hash de contraseñas | Argon2id vía `DelegatingPasswordEncoder` | Recomendación OWASP; permite migrar de algoritmo |
 | Validación | Jakarta Bean Validation | Integrado en Spring MVC |
-| Mapeo | MapStruct | Generado en compilación, sin reflexión |
+| Mapeo | Mappers explícitos en cada adaptador | El dominio es inmutable y se construye con fábricas (`create`/`restore`); el mapeo manual es más claro que MapStruct en este caso |
 | Rate limiting | Bucket4j | Protección contra fuerza bruta |
 | Documentación de la API | springdoc-openapi (Swagger UI) | API autodocumentada |
 | Observabilidad | Actuator + Micrometer, logs JSON | Health checks, métricas, auditoría |
@@ -54,7 +54,8 @@ com.henryfll.auth
 ├── apps/                     # Aplicaciones, clientes, roles y permisos
 ├── access/                   # Concesión de acceso usuario ↔ aplicación y roles asignados
 ├── auth/                     # Login, tokens, sesiones, refresh, logout
-└── shared/                   # Errores (RFC 9457), configuración, auditoría, utilidades
+├── audit/                    # Registro y consulta de eventos de seguridad
+└── shared/                   # Errores (RFC 9457), configuración, API de auditoría, utilidades
 ```
 
 Cada módulo sigue la misma estructura interna:
@@ -160,8 +161,8 @@ application_clients
   confidential             BOOLEAN NOT NULL          -- true solo para SERVICE
   client_secret_hash       VARCHAR NULL
   allowed_origins          TEXT[]                    -- CORS para clientes WEB
-  access_token_ttl         INTERVAL NOT NULL DEFAULT '15 minutes'
-  refresh_token_ttl        INTERVAL NOT NULL DEFAULT '7 days'   -- en móvil puede ser mayor, p. ej. 30 días
+  access_token_ttl_seconds  INT NOT NULL              -- por defecto 900 (15 min); entre 1 min y 1 h
+  refresh_token_ttl_seconds INT NOT NULL              -- por defecto 7 días (web) o 30 días (móvil); entre 1 h y 90 días
   status                   VARCHAR NOT NULL          -- ACTIVE | INACTIVE
   created_at, updated_at, version
 
@@ -290,6 +291,32 @@ Se emite **por aplicación**: solo contiene la autorización de la aplicación d
 - **Rotación en cada uso con detección de reutilización**: si se presenta un token ya usado, se revoca la sesión completa (`REUSE_DETECTED`).
 - Cada refresh vuelve a comprobar las reglas de acceso de la sección 5.4: si se ha revocado el acceso o cambiado los roles, el siguiente access token lo refleja.
 
+**Implementación (fase 4)**
+
+- El access token lleva el claim `sid`, la sesión a la que pertenece. `/users/me/sessions` lo usa para marcar la sesión actual y `logout` para saber qué sesión cerrar.
+- **Marcado atómico:** un token se marca como usado con un `UPDATE … WHERE used_at IS NULL`. De dos refresh simultáneos con el mismo token, solo uno lo consigue; el otro se trata como reutilización y revoca la sesión.
+  - Consecuencia: si un frontend web lanza dos refresh a la vez (por ejemplo, desde dos pestañas), el usuario tendrá que volver a iniciar sesión. El frontend debe serializar los refresh. Un periodo de gracia para este caso queda como mejora futura.
+- **Comprobaciones en cada refresh**, en este orden:
+  1. El cliente (`X-Client-Id`) es el mismo que abrió la sesión y está activo.
+  2. El transporte es el que corresponde: cookie en web, body en móvil.
+  3. El `Origin` es uno de los permitidos (solo web).
+  4. La sesión está activa y el token no se ha usado ni ha caducado.
+  5. La cuenta está activa.
+  6. El acceso a la aplicación sigue siendo efectivo.
+- **Si falla la cuenta o el acceso**, se revoca la sesión (`USER_INACTIVE` / `ACCESS_REVOKED`) y la revocación se confirma aunque la petición devuelva error.
+- **Vigencia del refresh token:** cada refresh token caduca a los `refresh_token_ttl_seconds` del cliente desde su emisión, así que la sesión se mantiene mientras el usuario la siga usando. Un límite absoluto de duración de la sesión y una tarea de limpieza de sesiones caducadas quedan como mejoras futuras.
+
+**Revocación de sesiones desde otros módulos (§5.4, regla 2)**
+
+Los módulos `access` y `user` publican eventos de Spring (`AccessWithdrawnEvent`, `UserDeactivatedEvent`) y `auth` los escucha en la misma transacción:
+
+| Evento | Cuándo | Sesiones revocadas |
+|---|---|---|
+| `AccessWithdrawnEvent` | Un acceso pasa a `SUSPENDED` o `REVOKED` | Las del usuario en esa aplicación (`ACCESS_REVOKED`) |
+| `UserDeactivatedEvent` | Una cuenta pasa a `LOCKED` o `DISABLED` | Todas las del usuario (`USER_INACTIVE`) |
+
+Un acceso que caduca por su vigencia no genera evento: lo detecta el siguiente refresh. Los access tokens ya emitidos siguen siendo válidos hasta que caducan (15 min por defecto).
+
 ### 6.3 Web y móvil
 
 | Aspecto | Cliente `WEB` | Cliente `MOBILE` |
@@ -375,6 +402,31 @@ Todos los endpoints llevan el prefijo `/api/v1`. Los errores siguen **RFC 9457 (
 
 En el arranque inicial (migración + `ApplicationRunner`) se crean la aplicación `auth-admin`, su cliente web, sus roles y un usuario `SUPER_ADMIN` cuyas credenciales se toman de variables de entorno.
 
+**Autorización de los endpoints de administración (implementada en la fase 3)**
+
+Cada ruta exige un permiso de `auth-admin`. Los roles solo agrupan permisos: lo que se comprueba es el permiso.
+
+| Rutas | Lectura (`GET`) | Escritura (resto de métodos) |
+|---|---|---|
+| `/admin/applications/{appId}/access/**` y `/admin/users/{userId}/access` | `access:read` | `access:write` |
+| `/admin/applications/**` (aplicaciones, clientes, roles, permisos) | `applications:read` | `applications:write` |
+| `/admin/users/**` | `users:read` | `users:write` |
+| Cualquier otra ruta bajo `/admin/**` | denegada | denegada |
+
+Los permisos solo cuentan en tokens con `aud = auth-admin`. Un token de otra aplicación autentica al usuario (sirve para `/users/me`), pero nunca da acceso a la administración, aunque esa aplicación defina un rol llamado `SUPER_ADMIN`.
+
+**Errores de autenticación y autorización** (Problem Details, como el resto de la API)
+
+| Código | HTTP | Cuándo |
+|---|---|---|
+| `AUTHENTICATION_REQUIRED` | 401 | Petición protegida sin `Authorization: Bearer` |
+| `INVALID_TOKEN` | 401 | Token mal formado, con firma inválida, caducado o de otro emisor |
+| `INSUFFICIENT_PERMISSIONS` | 403 | Token válido sin el permiso que exige la ruta |
+| `AUTH_INVALID_CLIENT` | 401 | `X-Client-Id` desconocido, inactivo, de una aplicación inactiva o confidencial (`SERVICE`) |
+| `AUTH_INVALID_CREDENTIALS` | 401 | Email inexistente o contraseña incorrecta (mismo mensaje y tiempo de respuesta similar) |
+| `AUTH_ACCOUNT_INACTIVE` | 401 | Contraseña correcta, pero la cuenta está bloqueada o deshabilitada |
+| `ACCESS_NOT_GRANTED` | 403 | Credenciales correctas, pero sin acceso efectivo a la aplicación del cliente |
+
 ## 8. Seguridad
 
 - **Anti-enumeración**: respuestas genéricas y tiempos homogéneos en login y registro.
@@ -385,6 +437,52 @@ En el arranque inicial (migración + `ApplicationRunner`) se crean la aplicació
 - **Secretos** fuera del repositorio: variables de entorno y perfiles `local`, `test` y `prod`.
 - **Auditoría** de todos los eventos sensibles (sección 5.3).
 - **Principio de mínimo privilegio**: los tokens solo llevan los permisos de la aplicación solicitada.
+
+### 8.1 Implementación (fase 5)
+
+**Límite de intentos (Bucket4j)**
+
+Usa token buckets en memoria por clave, guardados en una caché acotada (Caffeine: máximo 100 000 claves, que caducan tras 1 h sin uso). Al superar el límite se responde **429 `TOO_MANY_REQUESTS`** con la cabecera `Retry-After`.
+
+| Límite | Clave | Por defecto |
+|---|---|---|
+| `login-by-ip` | IP | 30 / min |
+| `login-by-email` | Email del intento | 10 / min |
+| `refresh-by-ip` | IP | 120 / min |
+
+- **Límites por instancia:** con varias réplicas, cada una aplica sus propios límites. Para un clúster, el backend tendría que ser compartido (Bucket4j con Redis).
+- **IP de origen:** detrás de un proxy hay que configurar `server.forward-headers-strategy` para que la IP sea la del cliente real.
+
+**Bloqueo progresivo de la cuenta**
+
+- Tras `max-failed-attempts` fallos (5) la cuenta se bloquea `base-lock-duration` (15 min). Cada fallo adicional dobla el bloqueo, hasta `max-lock-duration` (24 h).
+- Un login correcto pone el contador a cero.
+- **Durante el bloqueo no se comprueba la contraseña:** se calcula un hash ficticio para mantener el mismo tiempo de respuesta. Así el bloqueo no se puede usar como oráculo para saber si una contraseña es correcta.
+- **Respuesta siempre igual:** email inexistente, contraseña incorrecta y cuenta bloqueada devuelven `AUTH_INVALID_CREDENTIALS` con el mismo mensaje, para no revelar si el email existe.
+- **Desbloqueo:** un administrador desbloquea la cuenta con `PATCH /admin/users/{id}/status {"status": "ACTIVE"}`, que genera el evento `ACCOUNT_UNLOCKED`, o restableciendo la contraseña.
+- **Persistencia del contador:** el login usa `noRollbackFor = DomainException.class`, así que el contador y el bloqueo se guardan aunque el login falle.
+
+**Contraseñas**
+
+- **`PUT /users/me/password`:** pide la contraseña actual y la nueva tiene que ser distinta. Cierra todas las demás sesiones del usuario (`PASSWORD_CHANGED`) y mantiene la actual (`sid`).
+- **`PUT /admin/users/{id}/password`** (`users:write`): restablecimiento por un administrador mientras no exista la recuperación por email. Levanta el bloqueo y cierra todas las sesiones.
+
+**Auditoría** (módulo `audit`)
+
+- **Uso:** los módulos llaman a la interfaz `shared.audit.AuditLog`. La implementación añade el actor (el `sub` del token de la petición) y la IP.
+- **Persistencia independiente:** cada evento se guarda en su propia transacción (`REQUIRES_NEW`), así que los intentos fallidos quedan registrados aunque la operación haga rollback. Un fallo al auditar no rompe la operación auditada.
+- **Datos sensibles:** `details` nunca incluye contraseñas, tokens ni secretos. El email de un intento fallido sí se guarda.
+- **Consulta:** `GET /admin/audit-events` (`audit:read`), con filtros `type`, `userId` (como actor o destinatario), `applicationId`, `from` y `to`, paginado del más reciente al más antiguo.
+
+| Área | Eventos |
+|---|---|
+| Autenticación | `LOGIN_SUCCEEDED`, `LOGIN_FAILED` (`reason`: `UNKNOWN_USER`, `INVALID_PASSWORD`, `TEMPORARILY_LOCKED`, `ACCOUNT_INACTIVE`, `ACCESS_NOT_GRANTED`, `INVALID_CLIENT`), `ACCOUNT_TEMPORARILY_LOCKED`, `ACCOUNT_UNLOCKED` |
+| Sesiones | `LOGOUT`, `LOGOUT_ALL`, `SESSION_REVOKED`, `REFRESH_TOKEN_REUSED` |
+| Usuarios | `USER_CREATED`, `USER_STATUS_CHANGED`, `PASSWORD_CHANGED`, `PASSWORD_RESET` |
+| Accesos | `ACCESS_GRANTED` (alta o cambio, con roles y estado), `ACCESS_REVOKED` |
+| Aplicaciones | `APPLICATION_CREATED`, `APPLICATION_UPDATED`, `CLIENT_CREATED`, `CLIENT_UPDATED`, `CLIENT_SECRET_ROTATED`, `PERMISSION_CREATED`, `ROLE_CREATED`, `ROLE_PERMISSIONS_CHANGED` |
+
+La retención y la purga de eventos antiguos quedan para más adelante.
 
 ## 9. Testing y calidad
 
@@ -402,11 +500,11 @@ En el arranque inicial (migración + `ApplicationRunner`) se crean la aplicació
 | Fase | Alcance |
 |---|---|
 | **0. Base** | Esqueleto Maven + Spring Boot 4, Docker Compose, Flyway, CI, manejo global de errores, OpenAPI, ArchUnit |
-| **1. Usuarios y aplicaciones** | Módulos `user` y `apps`: entidades, migraciones, CRUD de administración, seed de `auth-admin` |
-| **2. Acceso** | Módulo `access`: concesiones, vigencia, asignación de roles, `/users/me/applications` |
-| **3. Autenticación** | Login por cliente, JWT RS256 con roles y permisos, JWKS, `/users/me`, autorización de endpoints de administración |
-| **4. Sesiones** | Refresh con rotación y detección de reutilización, cookie (web) o body (móvil), logout, logout-all, gestión de sesiones |
-| **5. Endurecimiento** | Rate limiting, bloqueo de cuenta, auditoría completa, cambio de contraseña |
+| **1. Usuarios y aplicaciones** | Módulos `user` y `apps`: entidades, migraciones, CRUD de administración, seed de `auth-admin`. Los endpoints de administración quedan **sin proteger hasta la fase 3** |
+| **2. Acceso** | Módulo `access`: concesiones, vigencia, asignación de roles y bootstrap del primer `SUPER_ADMIN`. El caso de uso de `/users/me/applications` queda listo; el endpoint se expone en la fase 3, cuando haya usuario autenticado |
+| **3. Autenticación** | Login por cliente, JWT RS256 con roles y permisos, JWKS, `/users/me` y `/users/me/applications`, autorización de endpoints de administración, CORS dinámico. En v1 hay una sola clave de firma (`kid` configurable); la rotación con varias claves publicadas queda para más adelante |
+| **4. Sesiones** | Refresh con rotación y detección de reutilización, cookie (web) o body (móvil), logout, logout-all, `/users/me/sessions`. Revocación de las sesiones al suspender o revocar un acceso o al bloquear un usuario (§5.4, regla 2) |
+| **5. Endurecimiento** | Rate limiting, bloqueo progresivo de cuenta, auditoría completa (`/admin/audit-events`), cambio de contraseña y restablecimiento por un administrador (§8.1) |
 | **Futuro** | Verificación de email, recuperación de contraseña por email, MFA (TOTP), login social, SSO entre aplicaciones / migración a Spring Authorization Server, token exchange para clientes `SERVICE` |
 
 > La **recuperación de contraseña por email** pasa también a versiones futuras, porque necesita la misma infraestructura de envío de correo que la verificación de email. En v1 un administrador puede restablecer la contraseña de un usuario.

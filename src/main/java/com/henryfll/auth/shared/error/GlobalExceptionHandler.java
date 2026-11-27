@@ -8,6 +8,8 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -53,7 +55,34 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     problem.setTitle(code.title());
     ex.details().forEach(problem::setProperty);
     enrich(problem, code, request.getRequestURI());
+    if (ex instanceof RateLimitedException limited) {
+      return ResponseEntity.status(problem.getStatus())
+          .header(HttpHeaders.RETRY_AFTER, String.valueOf(limited.retryAfterSeconds()))
+          .body(problem);
+    }
     return ResponseEntity.status(problem.getStatus()).body(problem);
+  }
+
+  /**
+   * Restricción de la base de datos violada (p. ej. una carrera entre dos altas con el mismo email)
+   * o modificación concurrente detectada por el bloqueo optimista.
+   */
+  @ExceptionHandler({
+    DataIntegrityViolationException.class,
+    OptimisticLockingFailureException.class
+  })
+  ResponseEntity<ProblemDetail> handleConflict(Exception ex, HttpServletRequest request) {
+    log.warn(
+        "Conflict processing {} {}: {}",
+        request.getMethod(),
+        request.getRequestURI(),
+        ex.toString());
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(
+            HttpStatus.CONFLICT, "The request conflicts with the current state of the resource");
+    problem.setTitle(ErrorCode.CONFLICT.title());
+    enrich(problem, ErrorCode.CONFLICT, request.getRequestURI());
+    return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
   }
 
   /** Cualquier error no previsto: 500 sin filtrar información interna. */

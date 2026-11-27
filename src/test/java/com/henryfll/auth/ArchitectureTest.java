@@ -13,7 +13,7 @@ import com.tngtech.archunit.lang.ArchRule;
     importOptions = ImportOption.DoNotIncludeTests.class)
 class ArchitectureTest {
 
-  private static final String[] MODULES = {"user", "apps", "access", "auth"};
+  private static final String[] MODULES = {"user", "apps", "access", "auth", "audit"};
 
   @ArchTest
   static final ArchRule domainIsFrameworkIndependent =
@@ -62,7 +62,8 @@ class ArchitectureTest {
       com.tngtech.archunit.lang.CompositeArchRule.of(moduleIsolationRule(MODULES[0]))
           .and(moduleIsolationRule(MODULES[1]))
           .and(moduleIsolationRule(MODULES[2]))
-          .and(moduleIsolationRule(MODULES[3]));
+          .and(moduleIsolationRule(MODULES[3]))
+          .and(moduleIsolationRule(MODULES[4]));
 
   private static ArchRule moduleIsolationRule(String module) {
     String base = "com.henryfll.auth." + module;
