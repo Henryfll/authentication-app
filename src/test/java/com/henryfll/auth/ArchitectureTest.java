@@ -13,7 +13,7 @@ import com.tngtech.archunit.lang.ArchRule;
     importOptions = ImportOption.DoNotIncludeTests.class)
 class ArchitectureTest {
 
-  private static final String[] MODULES = {"user", "application", "access", "auth"};
+  private static final String[] MODULES = {"user", "apps", "access", "auth"};
 
   @ArchTest
   static final ArchRule domainIsFrameworkIndependent =
