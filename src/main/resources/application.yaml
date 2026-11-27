@@ -29,6 +29,14 @@ spring:
       enabled: false
 
 app:
+  security:
+    jwt:
+      issuer: ${JWT_ISSUER:http://localhost:8080}
+      key-id: ${JWT_KEY_ID:auth-key-1}
+      private-key: ${JWT_PRIVATE_KEY:}
+      allow-ephemeral-key: false
+    cors:
+      origins-cache-ttl: 30s
   bootstrap:
     admin:
       email: ${AUTH_BOOTSTRAP_ADMIN_EMAIL:}
@@ -75,6 +83,10 @@ spring:
     compose:
       enabled: true
       lifecycle-management: start-only
+app:
+  security:
+    jwt:
+      allow-ephemeral-key: true
 logging:
   level:
     com.henryfll.auth: DEBUG

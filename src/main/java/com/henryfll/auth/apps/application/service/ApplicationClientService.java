@@ -16,6 +16,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -93,6 +96,31 @@ class ApplicationClientService implements ManageClientsUseCase {
   public List<ApplicationClient> list(ApplicationId applicationId) {
     requireApplication(applicationId);
     return clients.findByApplication(applicationId);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public Optional<ApplicationClient> findByClientId(String clientId) {
+    if (clientId == null || clientId.isBlank()) {
+      return Optional.empty();
+    }
+    return clients.findByClientId(clientId.strip().toLowerCase(Locale.ROOT));
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public Set<String> activeWebOrigins() {
+    List<ApplicationClient> webClients = clients.findActiveByPlatform(ClientPlatform.WEB);
+    Set<ApplicationId> activeApps =
+        webClients.stream()
+            .map(ApplicationClient::applicationId)
+            .distinct()
+            .filter(id -> applications.findById(id).map(Application::isActive).orElse(false))
+            .collect(Collectors.toSet());
+    return webClients.stream()
+        .filter(c -> activeApps.contains(c.applicationId()))
+        .flatMap(c -> c.allowedOrigins().stream())
+        .collect(Collectors.toUnmodifiableSet());
   }
 
   @Override

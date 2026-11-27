@@ -39,7 +39,11 @@ class ApplicationCatalogAdapter implements ApplicationCatalog {
   @Override
   public List<RoleRef> rolesOf(UUID applicationId) {
     return roles.listRoles(new ApplicationId(applicationId)).stream()
-        .map(view -> new RoleRef(view.role().id().value(), view.role().code()))
+        .map(view ->
+            new RoleRef(
+                view.role().id().value(),
+                view.role().code(),
+                view.permissions().stream().map(p -> p.code()).toList()))
         .toList();
   }
 }

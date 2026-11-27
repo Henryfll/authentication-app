@@ -55,6 +55,18 @@ class ApplicationClientRepositoryAdapter implements ApplicationClientRepository 
   }
 
   @Override
+  public Optional<ApplicationClient> findByClientId(String clientId) {
+    return clients.findByClientId(clientId).map(ApplicationClientRepositoryAdapter::toDomain);
+  }
+
+  @Override
+  public List<ApplicationClient> findActiveByPlatform(ClientPlatform platform) {
+    return clients.findByPlatformAndStatus(platform.name(), ActivationStatus.ACTIVE.name()).stream()
+        .map(ApplicationClientRepositoryAdapter::toDomain)
+        .toList();
+  }
+
+  @Override
   public boolean existsByClientId(String clientId) {
     return clients.existsByClientId(clientId);
   }

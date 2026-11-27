@@ -5,3 +5,10 @@ spring:
 logging:
   level:
     com.henryfll.auth: INFO
+app:
+  security:
+    jwt:
+      issuer: http://auth.test
+      allow-ephemeral-key: true
+    cors:
+      origins-cache-ttl: 0s

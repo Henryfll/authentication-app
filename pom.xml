@@ -43,6 +43,16 @@
             <version>${springdoc.version}</version>
         </dependency>
 
+        <!-- Seguridad: Spring Security + JWT (Nimbus JOSE) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+
         <!-- Criptografía: Argon2id para contraseñas y secretos de cliente -->
         <dependency>
             <groupId>org.springframework.security</groupId>

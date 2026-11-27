@@ -7,6 +7,8 @@ import com.henryfll.auth.apps.domain.ApplicationId;
 import com.henryfll.auth.apps.domain.ClientPlatform;
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 /** Gestión de los clientes (web, móvil, servicio) de una aplicación. */
 public interface ManageClientsUseCase {
@@ -18,6 +20,14 @@ public interface ManageClientsUseCase {
       ApplicationId applicationId, ApplicationClientId clientId, UpdateClientCommand command);
 
   List<ApplicationClient> list(ApplicationId applicationId);
+
+  /** Busca un cliente por su identificador público ({@code client_id}). */
+  Optional<ApplicationClient> findByClientId(String clientId);
+
+  /**
+   * Orígenes permitidos de todos los clientes {@code WEB} activos de aplicaciones activas (CORS).
+   */
+  Set<String> activeWebOrigins();
 
   /** Genera un secreto nuevo para un cliente {@code SERVICE}; el anterior deja de ser válido. */
   ClientWithSecret rotateSecret(ApplicationId applicationId, ApplicationClientId clientId);

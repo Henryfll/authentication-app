@@ -3,11 +3,13 @@ package com.henryfll.auth.user.application.service;
 import com.henryfll.auth.shared.error.ConflictException;
 import com.henryfll.auth.shared.error.ErrorCode;
 import com.henryfll.auth.shared.error.NotFoundException;
+import com.henryfll.auth.shared.error.ValidationException;
 import com.henryfll.auth.shared.pagination.PageQuery;
 import com.henryfll.auth.shared.pagination.PageResult;
 import com.henryfll.auth.user.application.port.in.ChangeUserStatusUseCase;
 import com.henryfll.auth.user.application.port.in.CreateUserUseCase;
 import com.henryfll.auth.user.application.port.in.FindUsersUseCase;
+import com.henryfll.auth.user.application.port.in.VerifyCredentialsUseCase;
 import com.henryfll.auth.user.application.port.out.PasswordHasher;
 import com.henryfll.auth.user.application.port.out.UserRepository;
 import com.henryfll.auth.user.domain.Email;
@@ -22,11 +24,19 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional
-class UserService implements CreateUserUseCase, FindUsersUseCase, ChangeUserStatusUseCase {
+class UserService
+    implements CreateUserUseCase,
+        FindUsersUseCase,
+        ChangeUserStatusUseCase,
+        VerifyCredentialsUseCase {
+
+  /** Contraseña ficticia cuyo hash se compara cuando el email no existe (tiempo homogéneo). */
+  private static final String TIMING_DUMMY_PASSWORD = "timing-equalization-dummy-password";
 
   private final UserRepository users;
   private final PasswordHasher passwordHasher;
   private final Clock clock;
+  private volatile String dummyHash;
 
   UserService(UserRepository users, PasswordHasher passwordHasher, Clock clock) {
     this.users = users;
@@ -70,6 +80,31 @@ class UserService implements CreateUserUseCase, FindUsersUseCase, ChangeUserStat
   @Transactional(readOnly = true)
   public PageResult<User> search(UserSearchCriteria criteria, PageQuery page) {
     return users.search(criteria == null ? UserSearchCriteria.none() : criteria, page);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public Optional<User> verify(String email, String password) {
+    Optional<User> user;
+    try {
+      user = users.findByEmail(new Email(email));
+    } catch (ValidationException e) {
+      user = Optional.empty();
+    }
+    if (user.isEmpty()) {
+      passwordHasher.matches(password, dummyHash());
+      return Optional.empty();
+    }
+    return passwordHasher.matches(password, user.get().passwordHash()) ? user : Optional.empty();
+  }
+
+  private String dummyHash() {
+    String hash = dummyHash;
+    if (hash == null) {
+      hash = passwordHasher.hash(TIMING_DUMMY_PASSWORD);
+      dummyHash = hash;
+    }
+    return hash;
   }
 
   @Override

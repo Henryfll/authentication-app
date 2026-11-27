@@ -375,6 +375,31 @@ Todos los endpoints llevan el prefijo `/api/v1`. Los errores siguen **RFC 9457 (
 
 En el arranque inicial (migración + `ApplicationRunner`) se crean la aplicación `auth-admin`, su cliente web, sus roles y un usuario `SUPER_ADMIN` cuyas credenciales se toman de variables de entorno.
 
+**Autorización de los endpoints de administración (implementada en la fase 3)**
+
+Cada ruta exige un permiso de `auth-admin`. Los roles solo agrupan permisos: lo que se comprueba es el permiso.
+
+| Rutas | Lectura (`GET`) | Escritura (resto de métodos) |
+|---|---|---|
+| `/admin/applications/{appId}/access/**` y `/admin/users/{userId}/access` | `access:read` | `access:write` |
+| `/admin/applications/**` (aplicaciones, clientes, roles, permisos) | `applications:read` | `applications:write` |
+| `/admin/users/**` | `users:read` | `users:write` |
+| Cualquier otra ruta bajo `/admin/**` | denegada | denegada |
+
+Los permisos solo cuentan en tokens con `aud = auth-admin`. Un token de otra aplicación autentica al usuario (sirve para `/users/me`), pero nunca da acceso a la administración, aunque esa aplicación defina un rol llamado `SUPER_ADMIN`.
+
+**Errores de autenticación y autorización** (Problem Details, como el resto de la API)
+
+| Código | HTTP | Cuándo |
+|---|---|---|
+| `AUTHENTICATION_REQUIRED` | 401 | Petición protegida sin `Authorization: Bearer` |
+| `INVALID_TOKEN` | 401 | Token mal formado, con firma inválida, caducado o de otro emisor |
+| `INSUFFICIENT_PERMISSIONS` | 403 | Token válido sin el permiso que exige la ruta |
+| `AUTH_INVALID_CLIENT` | 401 | `X-Client-Id` desconocido, inactivo, de una aplicación inactiva o confidencial (`SERVICE`) |
+| `AUTH_INVALID_CREDENTIALS` | 401 | Email inexistente o contraseña incorrecta (mismo mensaje y tiempo de respuesta similar) |
+| `AUTH_ACCOUNT_INACTIVE` | 401 | Contraseña correcta, pero la cuenta está bloqueada o deshabilitada |
+| `ACCESS_NOT_GRANTED` | 403 | Credenciales correctas, pero sin acceso efectivo a la aplicación del cliente |
+
 ## 8. Seguridad
 
 - **Anti-enumeración**: respuestas genéricas y tiempos homogéneos en login y registro.
@@ -404,7 +429,7 @@ En el arranque inicial (migración + `ApplicationRunner`) se crean la aplicació
 | **0. Base** | Esqueleto Maven + Spring Boot 4, Docker Compose, Flyway, CI, manejo global de errores, OpenAPI, ArchUnit |
 | **1. Usuarios y aplicaciones** | Módulos `user` y `apps`: entidades, migraciones, CRUD de administración, seed de `auth-admin`. Los endpoints de administración quedan **sin proteger hasta la fase 3** |
 | **2. Acceso** | Módulo `access`: concesiones, vigencia, asignación de roles y bootstrap del primer `SUPER_ADMIN`. El caso de uso de `/users/me/applications` queda listo; el endpoint se expone en la fase 3, cuando haya usuario autenticado |
-| **3. Autenticación** | Login por cliente, JWT RS256 con roles y permisos, JWKS, `/users/me`, autorización de endpoints de administración |
+| **3. Autenticación** | Login por cliente, JWT RS256 con roles y permisos, JWKS, `/users/me` y `/users/me/applications`, autorización de endpoints de administración, CORS dinámico. En v1 hay una sola clave de firma (`kid` configurable); la rotación con varias claves publicadas queda para más adelante |
 | **4. Sesiones** | Refresh con rotación y detección de reutilización, cookie (web) o body (móvil), logout, logout-all, gestión de sesiones. Revocación de las sesiones al suspender o revocar un acceso (§5.4, regla 2) |
 | **5. Endurecimiento** | Rate limiting, bloqueo de cuenta, auditoría completa, cambio de contraseña |
 | **Futuro** | Verificación de email, recuperación de contraseña por email, MFA (TOTP), login social, SSO entre aplicaciones / migración a Spring Authorization Server, token exchange para clientes `SERVICE` |

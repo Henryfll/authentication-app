@@ -2,6 +2,7 @@ package com.henryfll.auth.access.application.service;
 
 import com.henryfll.auth.access.application.port.in.ListMyApplicationsUseCase;
 import com.henryfll.auth.access.application.port.in.ManageAccessUseCase;
+import com.henryfll.auth.access.application.port.in.ResolveAuthorizationUseCase;
 import com.henryfll.auth.access.application.port.out.AccessGrantRepository;
 import com.henryfll.auth.access.application.port.out.ApplicationCatalog;
 import com.henryfll.auth.access.application.port.out.UserDirectory;
@@ -20,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -29,7 +31,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional
-class AccessService implements ManageAccessUseCase, ListMyApplicationsUseCase {
+class AccessService
+    implements ManageAccessUseCase, ListMyApplicationsUseCase, ResolveAuthorizationUseCase {
 
   private final AccessGrantRepository grants;
   private final UserDirectory userDirectory;
@@ -163,6 +166,31 @@ class AccessService implements ManageAccessUseCase, ListMyApplicationsUseCase {
         .filter(Objects::nonNull)
         .sorted(Comparator.comparing(m -> m.application().code()))
         .toList();
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public Optional<EffectiveAuthorization> resolve(UUID userId, UUID applicationId) {
+    Instant now = clock.instant();
+    Optional<AccessGrant> grant =
+        grants.find(userId, applicationId).filter(g -> g.isEffectiveAt(now));
+    if (grant.isEmpty()) {
+      return Optional.empty();
+    }
+    Optional<ApplicationRef> app =
+        catalog.findApplication(applicationId).filter(ApplicationRef::active);
+    if (app.isEmpty()) {
+      return Optional.empty();
+    }
+    Map<UUID, RoleRef> roles = rolesById(applicationId);
+    List<RoleRef> assigned =
+        grant.get().roleIds().stream().map(roles::get).filter(Objects::nonNull).toList();
+    return Optional.of(
+        new EffectiveAuthorization(
+            applicationId,
+            app.get().code(),
+            assigned.stream().map(RoleRef::code).sorted().toList(),
+            assigned.stream().flatMap(r -> r.permissions().stream()).distinct().sorted().toList()));
   }
 
   private static AccessView view(

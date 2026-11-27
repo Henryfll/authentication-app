@@ -50,8 +50,27 @@ Para formatear el código antes de hacer commit:
 | `OPENAPI_ENABLED` | `false` (solo en `prod`) | Expone Swagger UI en producción |
 | `AUTH_BOOTSTRAP_ADMIN_EMAIL` | _(vacío)_ | Email del primer `SUPER_ADMIN` de `auth-admin`. Vacío: no se crea |
 | `AUTH_BOOTSTRAP_ADMIN_PASSWORD` | _(vacío)_ | Su contraseña (mínimo 12 caracteres, sin contener el email) |
+| `JWT_PRIVATE_KEY` | _(vacío)_ | Clave privada RSA (≥ 2048 bits, PEM PKCS#8) para firmar los tokens. **Obligatoria en `prod`**. En `local` y `test`, si falta, se genera una clave temporal |
+| `JWT_KEY_ID` | `auth-key-1` | `kid` de la clave, publicado en `/.well-known/jwks.json` |
+| `JWT_ISSUER` | `http://localhost:8080` | Valor del claim `iss` |
 
 El administrador inicial se crea al arrancar solo si no existe. Si ya existe, no se cambia su contraseña: solo se le concede el acceso a `auth-admin` si no lo tiene.
+
+Para generar una clave de firma:
+
+```bash
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out jwt-private.pem
+```
+
+## Uso de la API
+
+Login desde un cliente registrado. El primer administrador entra con el cliente `auth-admin-web`:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' -H 'X-Client-Id: auth-admin-web' -d '{"email": "admin@example.com", "password": "..."}'
+```
+
+La respuesta incluye `accessToken`, un JWT que se envía como `Authorization: Bearer <token>`. Lleva los roles y permisos del usuario en la aplicación del cliente. Las demás aplicaciones validan estos tokens con la clave pública de `/.well-known/jwks.json`.
 
 ## Flujo de trabajo
 
