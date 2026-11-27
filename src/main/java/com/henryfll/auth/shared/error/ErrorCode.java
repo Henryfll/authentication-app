@@ -33,7 +33,16 @@ public enum ErrorCode {
   ROLE_ALREADY_EXISTS(ErrorType.CONFLICT, "Role already exists"),
 
   // Módulo access
-  ACCESS_NOT_FOUND(ErrorType.NOT_FOUND, "Access not found");
+  ACCESS_NOT_FOUND(ErrorType.NOT_FOUND, "Access not found"),
+  ACCESS_NOT_GRANTED(ErrorType.FORBIDDEN, "Access to the application not granted"),
+
+  // Módulo auth
+  AUTH_INVALID_CLIENT(ErrorType.UNAUTHORIZED, "Invalid client"),
+  AUTH_INVALID_CREDENTIALS(ErrorType.UNAUTHORIZED, "Invalid credentials"),
+  AUTH_ACCOUNT_INACTIVE(ErrorType.UNAUTHORIZED, "Account is not active"),
+  AUTHENTICATION_REQUIRED(ErrorType.UNAUTHORIZED, "Authentication required"),
+  INVALID_TOKEN(ErrorType.UNAUTHORIZED, "Invalid or expired token"),
+  INSUFFICIENT_PERMISSIONS(ErrorType.FORBIDDEN, "Insufficient permissions");
 
   private final ErrorType type;
   private final String title;

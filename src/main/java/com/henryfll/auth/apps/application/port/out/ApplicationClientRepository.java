@@ -3,6 +3,7 @@ package com.henryfll.auth.apps.application.port.out;
 import com.henryfll.auth.apps.domain.ApplicationClient;
 import com.henryfll.auth.apps.domain.ApplicationClientId;
 import com.henryfll.auth.apps.domain.ApplicationId;
+import com.henryfll.auth.apps.domain.ClientPlatform;
 import java.util.List;
 import java.util.Optional;
 
@@ -13,6 +14,10 @@ public interface ApplicationClientRepository {
   Optional<ApplicationClient> findById(ApplicationClientId id);
 
   List<ApplicationClient> findByApplication(ApplicationId applicationId);
+
+  Optional<ApplicationClient> findByClientId(String clientId);
+
+  List<ApplicationClient> findActiveByPlatform(ClientPlatform platform);
 
   boolean existsByClientId(String clientId);
 }

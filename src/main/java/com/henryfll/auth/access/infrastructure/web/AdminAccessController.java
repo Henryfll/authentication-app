@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -48,7 +50,8 @@ class AdminAccessController {
   ResponseEntity<AccessResponse> grant(
       @PathVariable UUID appId,
       @PathVariable UUID userId,
-      @Valid @RequestBody GrantAccessRequest request) {
+      @Valid @RequestBody GrantAccessRequest request,
+      @AuthenticationPrincipal Jwt admin) {
     GrantResult result =
         access.grant(
             appId,
@@ -58,7 +61,7 @@ class AdminAccessController {
                 request.roleIds(),
                 request.validFrom(),
                 request.validUntil(),
-                null));
+                UUID.fromString(admin.getSubject())));
     AccessResponse body = AccessResponse.from(result.access());
     if (!result.created()) {
       return ResponseEntity.ok(body);
