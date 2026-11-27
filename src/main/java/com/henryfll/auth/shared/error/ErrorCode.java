@@ -13,7 +13,24 @@ public enum ErrorCode {
   METHOD_NOT_ALLOWED(ErrorType.METHOD_NOT_ALLOWED, "Method not allowed"),
   UNSUPPORTED_MEDIA_TYPE(ErrorType.UNSUPPORTED_MEDIA_TYPE, "Unsupported media type"),
   CONFLICT(ErrorType.CONFLICT, "Conflict"),
-  INTERNAL_ERROR(ErrorType.INTERNAL, "Internal server error");
+  BUSINESS_RULE_VIOLATION(ErrorType.UNPROCESSABLE, "Business rule violation"),
+  INTERNAL_ERROR(ErrorType.INTERNAL, "Internal server error"),
+
+  // Módulo user
+  USER_NOT_FOUND(ErrorType.NOT_FOUND, "User not found"),
+  USER_EMAIL_ALREADY_EXISTS(ErrorType.CONFLICT, "Email already registered"),
+  PASSWORD_POLICY_VIOLATION(ErrorType.VALIDATION, "Password does not meet the policy"),
+
+  // Módulo apps
+  APPLICATION_NOT_FOUND(ErrorType.NOT_FOUND, "Application not found"),
+  APPLICATION_CODE_ALREADY_EXISTS(ErrorType.CONFLICT, "Application code already exists"),
+  CLIENT_NOT_FOUND(ErrorType.NOT_FOUND, "Client not found"),
+  CLIENT_ID_ALREADY_EXISTS(ErrorType.CONFLICT, "Client id already exists"),
+  INVALID_CLIENT_CONFIGURATION(ErrorType.UNPROCESSABLE, "Invalid client configuration"),
+  PERMISSION_NOT_FOUND(ErrorType.NOT_FOUND, "Permission not found"),
+  PERMISSION_ALREADY_EXISTS(ErrorType.CONFLICT, "Permission already exists"),
+  ROLE_NOT_FOUND(ErrorType.NOT_FOUND, "Role not found"),
+  ROLE_ALREADY_EXISTS(ErrorType.CONFLICT, "Role already exists");
 
   private final ErrorType type;
   private final String title;
