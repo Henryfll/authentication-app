@@ -54,6 +54,8 @@ Para formatear el código antes de hacer commit:
 | `JWT_KEY_ID` | `auth-key-1` | `kid` de la clave, publicado en `/.well-known/jwks.json` |
 | `JWT_ISSUER` | `http://localhost:8080` | Valor del claim `iss` |
 | `APP_SECURITY_REFRESH_COOKIE_SECURE` | `true` (`false` en `local`) | Atributo `Secure` de la cookie del refresh token. Solo debe desactivarse en desarrollo con HTTP |
+| `APP_SECURITY_RATE_LIMIT_LOGIN_BY_IP_CAPACITY` | `30` | Intentos de login por IP y minuto. Hay variables equivalentes para `LOGIN_BY_EMAIL` (`10`) y `REFRESH_BY_IP` (`120`); `0` desactiva el límite |
+| `APP_SECURITY_LOCKOUT_MAX_FAILED_ATTEMPTS` | `5` | Fallos antes de bloquear la cuenta temporalmente. El bloqueo empieza en `APP_SECURITY_LOCKOUT_BASE_LOCK_DURATION` (`15m`) y se dobla con cada fallo hasta `APP_SECURITY_LOCKOUT_MAX_LOCK_DURATION` (`24h`) |
 
 El administrador inicial se crea al arrancar solo si no existe. Si ya existe, no se cambia su contraseña: solo se le concede el acceso a `auth-admin` si no lo tiene.
 
@@ -81,6 +83,8 @@ El login también abre una sesión y entrega un refresh token. Cómo se entrega 
 | `MOBILE` | Campo `refreshToken` del body | Body `{"refreshToken": "..."}`; guardarlo en Keychain o Keystore |
 
 Cada refresh token sirve una sola vez. Si se reutiliza, se cierra la sesión completa. Para cerrar sesión se usa `POST /api/v1/auth/logout` (la sesión actual) o `/logout-all` (todas), y `GET /api/v1/users/me/sessions` lista los dispositivos con sesión abierta.
+
+El usuario cambia su contraseña con `PUT /api/v1/users/me/password` (`currentPassword`, `newPassword`), y un administrador puede restablecerla con `PUT /api/v1/admin/users/{id}/password`. Los eventos de seguridad se consultan en `GET /api/v1/admin/audit-events` (permiso `audit:read`).
 
 ## Flujo de trabajo
 

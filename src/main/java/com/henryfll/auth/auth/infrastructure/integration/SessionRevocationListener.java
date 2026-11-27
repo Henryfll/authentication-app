@@ -3,6 +3,7 @@ package com.henryfll.auth.auth.infrastructure.integration;
 import com.henryfll.auth.access.domain.AccessWithdrawnEvent;
 import com.henryfll.auth.auth.application.port.in.RevokeSessionsUseCase;
 import com.henryfll.auth.auth.domain.SessionRevocationReason;
+import com.henryfll.auth.user.domain.PasswordChangedEvent;
 import com.henryfll.auth.user.domain.UserDeactivatedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +37,16 @@ class SessionRevocationListener {
         event.applicationId(),
         event.status(),
         revoked);
+  }
+
+  @EventListener
+  void onPasswordChanged(PasswordChangedEvent event) {
+    int revoked =
+        event.currentSessionId() == null
+            ? sessions.revokeAllForUser(event.userId(), SessionRevocationReason.PASSWORD_CHANGED)
+            : sessions.revokeAllForUserExcept(
+                event.userId(), event.currentSessionId(), SessionRevocationReason.PASSWORD_CHANGED);
+    log.info("Password of user {} changed: {} session(s) revoked", event.userId(), revoked);
   }
 
   @EventListener

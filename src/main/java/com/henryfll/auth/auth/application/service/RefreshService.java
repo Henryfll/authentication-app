@@ -2,6 +2,7 @@ package com.henryfll.auth.auth.application.service;
 
 import com.henryfll.auth.auth.application.port.in.AuthTokens;
 import com.henryfll.auth.auth.application.port.in.RefreshUseCase;
+import com.henryfll.auth.auth.application.port.out.AttemptLimiter;
 import com.henryfll.auth.auth.application.port.out.AuthorizationResolver;
 import com.henryfll.auth.auth.application.port.out.ClientDirectory;
 import com.henryfll.auth.auth.application.port.out.RefreshTokenRepository;
@@ -14,6 +15,9 @@ import com.henryfll.auth.auth.domain.RefreshToken;
 import com.henryfll.auth.auth.domain.RefreshTokenValues;
 import com.henryfll.auth.auth.domain.Session;
 import com.henryfll.auth.auth.domain.SessionRevocationReason;
+import com.henryfll.auth.shared.audit.AuditEvent;
+import com.henryfll.auth.shared.audit.AuditEventType;
+import com.henryfll.auth.shared.audit.AuditLog;
 import com.henryfll.auth.shared.error.DomainException;
 import com.henryfll.auth.shared.error.ErrorCode;
 import java.time.Clock;
@@ -46,6 +50,8 @@ class RefreshService implements RefreshUseCase {
   private final UserAccounts users;
   private final AuthorizationResolver authorizations;
   private final TokenFactory tokenFactory;
+  private final AttemptLimiter limiter;
+  private final AuditLog audit;
   private final Clock clock;
 
   RefreshService(
@@ -55,6 +61,8 @@ class RefreshService implements RefreshUseCase {
       UserAccounts users,
       AuthorizationResolver authorizations,
       TokenFactory tokenFactory,
+      AttemptLimiter limiter,
+      AuditLog audit,
       Clock clock) {
     this.clients = clients;
     this.refreshTokens = refreshTokens;
@@ -62,12 +70,15 @@ class RefreshService implements RefreshUseCase {
     this.users = users;
     this.authorizations = authorizations;
     this.tokenFactory = tokenFactory;
+    this.limiter = limiter;
+    this.audit = audit;
     this.clock = clock;
   }
 
   @Override
   @Transactional(noRollbackFor = DomainException.class)
   public AuthTokens refresh(RefreshCommand command) {
+    AuthChecks.throttle(limiter, AttemptLimiter.Limit.REFRESH_BY_IP, command.ipAddress());
     LoginClient client = AuthChecks.requirePublicClient(clients, command.clientId());
     checkTransport(client, command);
 
@@ -88,6 +99,11 @@ class RefreshService implements RefreshUseCase {
     Instant now = clock.instant();
     if (token.isUsed() || !refreshTokens.markUsed(token.id(), now)) {
       revoke(session, SessionRevocationReason.REUSE_DETECTED, now);
+      audit.record(
+          AuditEvent.of(
+                  AuditEventType.REFRESH_TOKEN_REUSED, session.userId(), session.applicationId())
+              .with("sessionId", session.id().toString())
+              .with("clientId", client.clientId()));
       log.warn(
           "Refresh token reuse detected for session {} of user {}: session revoked",
           session.id(),

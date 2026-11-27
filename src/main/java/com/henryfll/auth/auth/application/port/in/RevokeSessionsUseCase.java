@@ -9,4 +9,7 @@ public interface RevokeSessionsUseCase {
   int revokeForApplication(UUID userId, UUID applicationId, SessionRevocationReason reason);
 
   int revokeAllForUser(UUID userId, SessionRevocationReason reason);
+
+  /** Revoca todas las sesiones activas del usuario salvo {@code keepSessionId}. */
+  int revokeAllForUserExcept(UUID userId, UUID keepSessionId, SessionRevocationReason reason);
 }

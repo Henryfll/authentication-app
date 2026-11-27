@@ -11,6 +11,9 @@ import com.henryfll.auth.access.domain.AccessStatus;
 import com.henryfll.auth.access.domain.AccessWithdrawnEvent;
 import com.henryfll.auth.access.domain.ApplicationRef;
 import com.henryfll.auth.access.domain.RoleRef;
+import com.henryfll.auth.shared.audit.AuditEvent;
+import com.henryfll.auth.shared.audit.AuditEventType;
+import com.henryfll.auth.shared.audit.AuditLog;
 import com.henryfll.auth.shared.error.ErrorCode;
 import com.henryfll.auth.shared.error.NotFoundException;
 import com.henryfll.auth.shared.pagination.PageQuery;
@@ -41,18 +44,21 @@ class AccessService
   private final ApplicationCatalog catalog;
   private final Clock clock;
   private final ApplicationEventPublisher events;
+  private final AuditLog audit;
 
   AccessService(
       AccessGrantRepository grants,
       UserDirectory userDirectory,
       ApplicationCatalog catalog,
       Clock clock,
-      ApplicationEventPublisher events) {
+      ApplicationEventPublisher events,
+      AuditLog audit) {
     this.grants = grants;
     this.userDirectory = userDirectory;
     this.catalog = catalog;
     this.clock = clock;
     this.events = events;
+    this.audit = audit;
   }
 
   @Override
@@ -95,6 +101,19 @@ class AccessService
               now);
     }
     AccessGrant saved = grants.save(grant);
+    audit.record(
+        AuditEvent.of(AuditEventType.ACCESS_GRANTED, userId, applicationId)
+            .with("created", existing.isEmpty())
+            .with("status", saved.status())
+            .with(
+                "roles",
+                saved.roleIds().stream()
+                    .map(roles::get)
+                    .filter(Objects::nonNull)
+                    .map(RoleRef::code)
+                    .sorted()
+                    .toList())
+            .with("validUntil", saved.validUntil() == null ? null : saved.validUntil().toString()));
     if (saved.status() != AccessStatus.ACTIVE) {
       events.publishEvent(new AccessWithdrawnEvent(userId, applicationId, saved.status()));
     }
@@ -107,6 +126,7 @@ class AccessService
     grant.revoke(clock.instant());
     grants.save(grant);
     events.publishEvent(new AccessWithdrawnEvent(userId, applicationId, AccessStatus.REVOKED));
+    audit.record(AuditEvent.of(AuditEventType.ACCESS_REVOKED, userId, applicationId));
   }
 
   @Override

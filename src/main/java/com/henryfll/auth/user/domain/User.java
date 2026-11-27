@@ -16,8 +16,8 @@ public final class User {
   private String lastName;
   private UserStatus status;
   private final Instant emailVerifiedAt;
-  private final int failedLoginAttempts;
-  private final Instant lockedUntil;
+  private int failedLoginAttempts;
+  private Instant lockedUntil;
   private Instant passwordChangedAt;
   private final Instant createdAt;
   private Instant updatedAt;
@@ -96,10 +96,49 @@ public final class User {
         updatedAt);
   }
 
+  /** Activar una cuenta también levanta un bloqueo temporal por intentos fallidos. */
   public void changeStatus(UserStatus newStatus, Instant now) {
     Objects.requireNonNull(newStatus, "status");
     if (newStatus != status) {
       status = newStatus;
+      updatedAt = now;
+    }
+    if (newStatus == UserStatus.ACTIVE) {
+      clearLockout(now);
+    }
+  }
+
+  /** {@code true} si la cuenta está bloqueada temporalmente por intentos fallidos. */
+  public boolean isTemporarilyLockedAt(Instant instant) {
+    return lockedUntil != null && instant.isBefore(lockedUntil);
+  }
+
+  /**
+   * Registra un intento fallido y, si se alcanza el umbral de la política, bloquea la cuenta.
+   *
+   * @return {@code true} si este fallo ha provocado un bloqueo.
+   */
+  public boolean recordFailedLogin(LockoutPolicy policy, Instant now) {
+    failedLoginAttempts++;
+    updatedAt = now;
+    var lock = policy.lockDurationAfter(failedLoginAttempts);
+    if (lock.isZero()) {
+      return false;
+    }
+    lockedUntil = now.plus(lock);
+    return true;
+  }
+
+  public void recordSuccessfulLogin(Instant now) {
+    if (failedLoginAttempts != 0 || lockedUntil != null) {
+      clearLockout(now);
+    }
+  }
+
+  private void clearLockout(Instant now) {
+    if (failedLoginAttempts != 0 || lockedUntil != null) {
+      failedLoginAttempts = 0;
+      lockedUntil = null;
       updatedAt = now;
     }
   }
@@ -114,6 +153,12 @@ public final class User {
     this.passwordHash = requireHash(newPasswordHash);
     this.passwordChangedAt = now;
     this.updatedAt = now;
+  }
+
+  /** Restablecimiento por un administrador: nueva contraseña y bloqueo temporal levantado. */
+  public void resetPasswordHash(String newPasswordHash, Instant now) {
+    changePasswordHash(newPasswordHash, now);
+    clearLockout(now);
   }
 
   public boolean isEmailVerified() {

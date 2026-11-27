@@ -165,11 +165,15 @@ class LoginApiTest extends IntegrationTest {
     login(clientId, email, "wrong passphrase value")
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.code").value("AUTH_INVALID_CREDENTIALS"))
-        .andExpect(jsonPath("$.detail").value("Invalid email or password"));
+        .andExpect(
+            jsonPath("$.detail")
+                .value("Invalid email or password, or the account is temporarily locked"));
     login(clientId, unique("nobody") + "@example.com", PASSWORD)
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.code").value("AUTH_INVALID_CREDENTIALS"))
-        .andExpect(jsonPath("$.detail").value("Invalid email or password"));
+        .andExpect(
+            jsonPath("$.detail")
+                .value("Invalid email or password, or the account is temporarily locked"));
     login(clientId, "not-an-email", PASSWORD)
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.code").value("AUTH_INVALID_CREDENTIALS"));

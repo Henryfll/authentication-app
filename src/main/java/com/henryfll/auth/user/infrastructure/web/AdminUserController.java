@@ -2,6 +2,7 @@ package com.henryfll.auth.user.infrastructure.web;
 
 import com.henryfll.auth.shared.pagination.PageQuery;
 import com.henryfll.auth.shared.web.PageResponse;
+import com.henryfll.auth.user.application.port.in.ChangePasswordUseCase;
 import com.henryfll.auth.user.application.port.in.ChangeUserStatusUseCase;
 import com.henryfll.auth.user.application.port.in.CreateUserUseCase;
 import com.henryfll.auth.user.application.port.in.CreateUserUseCase.CreateUserCommand;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -38,14 +40,17 @@ class AdminUserController {
   private final CreateUserUseCase createUser;
   private final FindUsersUseCase findUsers;
   private final ChangeUserStatusUseCase changeUserStatus;
+  private final ChangePasswordUseCase passwords;
 
   AdminUserController(
       CreateUserUseCase createUser,
       FindUsersUseCase findUsers,
-      ChangeUserStatusUseCase changeUserStatus) {
+      ChangeUserStatusUseCase changeUserStatus,
+      ChangePasswordUseCase passwords) {
     this.createUser = createUser;
     this.findUsers = findUsers;
     this.changeUserStatus = changeUserStatus;
+    this.passwords = passwords;
   }
 
   @PostMapping
@@ -82,6 +87,26 @@ class AdminUserController {
   UserResponse changeStatus(
       @PathVariable UUID userId, @Valid @RequestBody ChangeUserStatusRequest request) {
     return UserResponse.from(changeUserStatus.changeStatus(new UserId(userId), request.status()));
+  }
+
+  @PutMapping("/{userId}/password")
+  @Operation(
+      summary = "Restablecer la contraseña de un usuario",
+      description =
+          "Sustituye la recuperación por email mientras no exista. Levanta el bloqueo temporal"
+              + " por intentos fallidos y cierra todas las sesiones del usuario.")
+  ResponseEntity<Void> resetPassword(
+      @PathVariable UUID userId, @Valid @RequestBody ResetPasswordRequest request) {
+    passwords.resetPassword(new UserId(userId), request.newPassword());
+    return ResponseEntity.noContent().build();
+  }
+
+  record ResetPasswordRequest(@NotBlank @Size(max = 128) String newPassword) {
+
+    @Override
+    public String toString() {
+      return "ResetPasswordRequest[***]";
+    }
   }
 
   record CreateUserRequest(

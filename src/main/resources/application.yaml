@@ -40,6 +40,20 @@ app:
     refresh-cookie:
       name: refresh_token
       secure: true
+    rate-limit:
+      login-by-ip:
+        capacity: 30
+        period: 1m
+      login-by-email:
+        capacity: 10
+        period: 1m
+      refresh-by-ip:
+        capacity: 120
+        period: 1m
+    lockout:
+      max-failed-attempts: 5
+      base-lock-duration: 15m
+      max-lock-duration: 24h
   bootstrap:
     admin:
       email: ${AUTH_BOOTSTRAP_ADMIN_EMAIL:}

@@ -54,7 +54,8 @@ com.henryfll.auth
 ├── apps/                     # Aplicaciones, clientes, roles y permisos
 ├── access/                   # Concesión de acceso usuario ↔ aplicación y roles asignados
 ├── auth/                     # Login, tokens, sesiones, refresh, logout
-└── shared/                   # Errores (RFC 9457), configuración, auditoría, utilidades
+├── audit/                    # Registro y consulta de eventos de seguridad
+└── shared/                   # Errores (RFC 9457), configuración, API de auditoría, utilidades
 ```
 
 Cada módulo sigue la misma estructura interna:
@@ -437,6 +438,52 @@ Los permisos solo cuentan en tokens con `aud = auth-admin`. Un token de otra apl
 - **Auditoría** de todos los eventos sensibles (sección 5.3).
 - **Principio de mínimo privilegio**: los tokens solo llevan los permisos de la aplicación solicitada.
 
+### 8.1 Implementación (fase 5)
+
+**Límite de intentos (Bucket4j)**
+
+Usa token buckets en memoria por clave, guardados en una caché acotada (Caffeine: máximo 100 000 claves, que caducan tras 1 h sin uso). Al superar el límite se responde **429 `TOO_MANY_REQUESTS`** con la cabecera `Retry-After`.
+
+| Límite | Clave | Por defecto |
+|---|---|---|
+| `login-by-ip` | IP | 30 / min |
+| `login-by-email` | Email del intento | 10 / min |
+| `refresh-by-ip` | IP | 120 / min |
+
+- **Límites por instancia:** con varias réplicas, cada una aplica sus propios límites. Para un clúster, el backend tendría que ser compartido (Bucket4j con Redis).
+- **IP de origen:** detrás de un proxy hay que configurar `server.forward-headers-strategy` para que la IP sea la del cliente real.
+
+**Bloqueo progresivo de la cuenta**
+
+- Tras `max-failed-attempts` fallos (5) la cuenta se bloquea `base-lock-duration` (15 min). Cada fallo adicional dobla el bloqueo, hasta `max-lock-duration` (24 h).
+- Un login correcto pone el contador a cero.
+- **Durante el bloqueo no se comprueba la contraseña:** se calcula un hash ficticio para mantener el mismo tiempo de respuesta. Así el bloqueo no se puede usar como oráculo para saber si una contraseña es correcta.
+- **Respuesta siempre igual:** email inexistente, contraseña incorrecta y cuenta bloqueada devuelven `AUTH_INVALID_CREDENTIALS` con el mismo mensaje, para no revelar si el email existe.
+- **Desbloqueo:** un administrador desbloquea la cuenta con `PATCH /admin/users/{id}/status {"status": "ACTIVE"}`, que genera el evento `ACCOUNT_UNLOCKED`, o restableciendo la contraseña.
+- **Persistencia del contador:** el login usa `noRollbackFor = DomainException.class`, así que el contador y el bloqueo se guardan aunque el login falle.
+
+**Contraseñas**
+
+- **`PUT /users/me/password`:** pide la contraseña actual y la nueva tiene que ser distinta. Cierra todas las demás sesiones del usuario (`PASSWORD_CHANGED`) y mantiene la actual (`sid`).
+- **`PUT /admin/users/{id}/password`** (`users:write`): restablecimiento por un administrador mientras no exista la recuperación por email. Levanta el bloqueo y cierra todas las sesiones.
+
+**Auditoría** (módulo `audit`)
+
+- **Uso:** los módulos llaman a la interfaz `shared.audit.AuditLog`. La implementación añade el actor (el `sub` del token de la petición) y la IP.
+- **Persistencia independiente:** cada evento se guarda en su propia transacción (`REQUIRES_NEW`), así que los intentos fallidos quedan registrados aunque la operación haga rollback. Un fallo al auditar no rompe la operación auditada.
+- **Datos sensibles:** `details` nunca incluye contraseñas, tokens ni secretos. El email de un intento fallido sí se guarda.
+- **Consulta:** `GET /admin/audit-events` (`audit:read`), con filtros `type`, `userId` (como actor o destinatario), `applicationId`, `from` y `to`, paginado del más reciente al más antiguo.
+
+| Área | Eventos |
+|---|---|
+| Autenticación | `LOGIN_SUCCEEDED`, `LOGIN_FAILED` (`reason`: `UNKNOWN_USER`, `INVALID_PASSWORD`, `TEMPORARILY_LOCKED`, `ACCOUNT_INACTIVE`, `ACCESS_NOT_GRANTED`, `INVALID_CLIENT`), `ACCOUNT_TEMPORARILY_LOCKED`, `ACCOUNT_UNLOCKED` |
+| Sesiones | `LOGOUT`, `LOGOUT_ALL`, `SESSION_REVOKED`, `REFRESH_TOKEN_REUSED` |
+| Usuarios | `USER_CREATED`, `USER_STATUS_CHANGED`, `PASSWORD_CHANGED`, `PASSWORD_RESET` |
+| Accesos | `ACCESS_GRANTED` (alta o cambio, con roles y estado), `ACCESS_REVOKED` |
+| Aplicaciones | `APPLICATION_CREATED`, `APPLICATION_UPDATED`, `CLIENT_CREATED`, `CLIENT_UPDATED`, `CLIENT_SECRET_ROTATED`, `PERMISSION_CREATED`, `ROLE_CREATED`, `ROLE_PERMISSIONS_CHANGED` |
+
+La retención y la purga de eventos antiguos quedan para más adelante.
+
 ## 9. Testing y calidad
 
 - **Unitarios**: dominio y casos de uso, sin contexto de Spring.
@@ -457,7 +504,7 @@ Los permisos solo cuentan en tokens con `aud = auth-admin`. Un token de otra apl
 | **2. Acceso** | Módulo `access`: concesiones, vigencia, asignación de roles y bootstrap del primer `SUPER_ADMIN`. El caso de uso de `/users/me/applications` queda listo; el endpoint se expone en la fase 3, cuando haya usuario autenticado |
 | **3. Autenticación** | Login por cliente, JWT RS256 con roles y permisos, JWKS, `/users/me` y `/users/me/applications`, autorización de endpoints de administración, CORS dinámico. En v1 hay una sola clave de firma (`kid` configurable); la rotación con varias claves publicadas queda para más adelante |
 | **4. Sesiones** | Refresh con rotación y detección de reutilización, cookie (web) o body (móvil), logout, logout-all, `/users/me/sessions`. Revocación de las sesiones al suspender o revocar un acceso o al bloquear un usuario (§5.4, regla 2) |
-| **5. Endurecimiento** | Rate limiting, bloqueo de cuenta, auditoría completa, cambio de contraseña |
+| **5. Endurecimiento** | Rate limiting, bloqueo progresivo de cuenta, auditoría completa (`/admin/audit-events`), cambio de contraseña y restablecimiento por un administrador (§8.1) |
 | **Futuro** | Verificación de email, recuperación de contraseña por email, MFA (TOTP), login social, SSO entre aplicaciones / migración a Spring Authorization Server, token exchange para clientes `SERVICE` |
 
 > La **recuperación de contraseña por email** pasa también a versiones futuras, porque necesita la misma infraestructura de envío de correo que la verificación de email. En v1 un administrador puede restablecer la contraseña de un usuario.

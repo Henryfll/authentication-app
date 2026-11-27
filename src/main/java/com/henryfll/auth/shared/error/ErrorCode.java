@@ -15,11 +15,13 @@ public enum ErrorCode {
   CONFLICT(ErrorType.CONFLICT, "Conflict"),
   BUSINESS_RULE_VIOLATION(ErrorType.UNPROCESSABLE, "Business rule violation"),
   INTERNAL_ERROR(ErrorType.INTERNAL, "Internal server error"),
+  TOO_MANY_REQUESTS(ErrorType.TOO_MANY_REQUESTS, "Too many requests"),
 
   // Módulo user
   USER_NOT_FOUND(ErrorType.NOT_FOUND, "User not found"),
   USER_EMAIL_ALREADY_EXISTS(ErrorType.CONFLICT, "Email already registered"),
   PASSWORD_POLICY_VIOLATION(ErrorType.VALIDATION, "Password does not meet the policy"),
+  INVALID_CURRENT_PASSWORD(ErrorType.VALIDATION, "Current password is incorrect"),
 
   // Módulo apps
   APPLICATION_NOT_FOUND(ErrorType.NOT_FOUND, "Application not found"),

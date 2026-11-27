@@ -1,9 +1,11 @@
 package com.henryfll.auth.auth.application.service;
 
+import com.henryfll.auth.auth.application.port.out.AttemptLimiter;
 import com.henryfll.auth.auth.application.port.out.ClientDirectory;
 import com.henryfll.auth.auth.domain.LoginClient;
 import com.henryfll.auth.shared.error.DomainException;
 import com.henryfll.auth.shared.error.ErrorCode;
+import com.henryfll.auth.shared.error.RateLimitedException;
 
 /** Validaciones comunes al login y al refresh. */
 final class AuthChecks {
@@ -29,6 +31,15 @@ final class AuthChecks {
     return new DomainException(
         ErrorCode.ACCESS_NOT_GRANTED,
         "The user has no access to application " + client.applicationCode());
+  }
+
+  /** Consume un intento del límite indicado; lanza 429 si se ha superado. */
+  static void throttle(AttemptLimiter limiter, AttemptLimiter.Limit limit, String key) {
+    limiter
+        .tryAcquire(limit, key)
+        .ifPresent(retryAfter -> {
+          throw new RateLimitedException(retryAfter);
+        });
   }
 
   static DomainException invalidRefreshToken() {
