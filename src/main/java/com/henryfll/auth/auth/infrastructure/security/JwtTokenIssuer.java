@@ -18,6 +18,7 @@ class JwtTokenIssuer implements TokenIssuer {
   static final String CLAIM_EMAIL = "email";
   static final String CLAIM_ROLES = "roles";
   static final String CLAIM_PERMISSIONS = "permissions";
+  static final String CLAIM_SESSION_ID = "sid";
 
   private final JwtEncoder encoder;
   private final JwtProperties properties;
@@ -41,6 +42,9 @@ class JwtTokenIssuer implements TokenIssuer {
             .claim(CLAIM_PERMISSIONS, claims.permissions());
     if (claims.authorizedParty() != null) {
       set.claim(CLAIM_AUTHORIZED_PARTY, claims.authorizedParty());
+    }
+    if (claims.sessionId() != null) {
+      set.claim(CLAIM_SESSION_ID, claims.sessionId().toString());
     }
     if (claims.email() != null) {
       set.claim(CLAIM_EMAIL, claims.email());

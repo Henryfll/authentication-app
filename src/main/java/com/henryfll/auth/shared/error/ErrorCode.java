@@ -42,7 +42,10 @@ public enum ErrorCode {
   AUTH_ACCOUNT_INACTIVE(ErrorType.UNAUTHORIZED, "Account is not active"),
   AUTHENTICATION_REQUIRED(ErrorType.UNAUTHORIZED, "Authentication required"),
   INVALID_TOKEN(ErrorType.UNAUTHORIZED, "Invalid or expired token"),
-  INSUFFICIENT_PERMISSIONS(ErrorType.FORBIDDEN, "Insufficient permissions");
+  INSUFFICIENT_PERMISSIONS(ErrorType.FORBIDDEN, "Insufficient permissions"),
+  INVALID_REFRESH_TOKEN(ErrorType.UNAUTHORIZED, "Invalid or expired refresh token"),
+  REFRESH_TOKEN_REUSED(ErrorType.UNAUTHORIZED, "Refresh token reuse detected"),
+  SESSION_NOT_FOUND(ErrorType.NOT_FOUND, "Session not found");
 
   private final ErrorType type;
   private final String title;

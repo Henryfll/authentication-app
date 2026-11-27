@@ -8,6 +8,7 @@ import com.henryfll.auth.access.application.port.out.ApplicationCatalog;
 import com.henryfll.auth.access.application.port.out.UserDirectory;
 import com.henryfll.auth.access.domain.AccessGrant;
 import com.henryfll.auth.access.domain.AccessStatus;
+import com.henryfll.auth.access.domain.AccessWithdrawnEvent;
 import com.henryfll.auth.access.domain.ApplicationRef;
 import com.henryfll.auth.access.domain.RoleRef;
 import com.henryfll.auth.shared.error.ErrorCode;
@@ -26,6 +27,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,16 +40,19 @@ class AccessService
   private final UserDirectory userDirectory;
   private final ApplicationCatalog catalog;
   private final Clock clock;
+  private final ApplicationEventPublisher events;
 
   AccessService(
       AccessGrantRepository grants,
       UserDirectory userDirectory,
       ApplicationCatalog catalog,
-      Clock clock) {
+      Clock clock,
+      ApplicationEventPublisher events) {
     this.grants = grants;
     this.userDirectory = userDirectory;
     this.catalog = catalog;
     this.clock = clock;
+    this.events = events;
   }
 
   @Override
@@ -90,6 +95,9 @@ class AccessService
               now);
     }
     AccessGrant saved = grants.save(grant);
+    if (saved.status() != AccessStatus.ACTIVE) {
+      events.publishEvent(new AccessWithdrawnEvent(userId, applicationId, saved.status()));
+    }
     return new GrantResult(view(saved, application, roles, now), existing.isEmpty());
   }
 
@@ -98,6 +106,7 @@ class AccessService
     AccessGrant grant = requireGrant(applicationId, userId);
     grant.revoke(clock.instant());
     grants.save(grant);
+    events.publishEvent(new AccessWithdrawnEvent(userId, applicationId, AccessStatus.REVOKED));
   }
 
   @Override

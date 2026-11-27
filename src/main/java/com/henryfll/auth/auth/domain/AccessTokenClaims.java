@@ -11,6 +11,7 @@ import java.util.UUID;
  *
  * @param audience código de la aplicación ({@code aud}).
  * @param authorizedParty {@code client_id} que pidió el token ({@code azp}).
+ * @param sessionId sesión a la que pertenece el token ({@code sid}); {@code null} si no tiene.
  */
 public record AccessTokenClaims(
     UUID subject,
@@ -21,7 +22,8 @@ public record AccessTokenClaims(
     List<String> permissions,
     Instant issuedAt,
     Instant expiresAt,
-    UUID tokenId) {
+    UUID tokenId,
+    UUID sessionId) {
 
   public AccessTokenClaims {
     Objects.requireNonNull(subject, "subject");
