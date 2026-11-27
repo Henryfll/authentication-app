@@ -51,7 +51,7 @@ Servicio centralizado de **identidad y control de acceso** que:
 com.henryfll.auth
 ├── AuthApplication.java
 ├── user/                     # Identidad de usuarios
-├── application/              # Aplicaciones, clientes, roles y permisos
+├── apps/                     # Aplicaciones, clientes, roles y permisos
 ├── access/                   # Concesión de acceso usuario ↔ aplicación y roles asignados
 ├── auth/                     # Login, tokens, sesiones, refresh, logout
 └── shared/                   # Errores (RFC 9457), configuración, auditoría, utilidades
@@ -83,7 +83,7 @@ Cada módulo sigue la misma estructura interna:
 | Módulo | Responsabilidad |
 |---|---|
 | **user** | Alta de usuarios, perfil, cambio de contraseña, estado de la cuenta (activo, bloqueado, deshabilitado) |
-| **application** | Registro de aplicaciones, sus clientes (web, móvil, servicio), el catálogo de permisos y los roles de cada aplicación |
+| **apps** | Registro de aplicaciones, sus clientes (web, móvil, servicio), el catálogo de permisos y los roles de cada aplicación |
 | **access** | Qué usuarios pueden entrar a qué aplicaciones, con qué roles y hasta cuándo |
 | **auth** | Autenticación, emisión de JWT con los roles y permisos de la aplicación, sesiones, rotación de refresh tokens y JWKS |
 
@@ -402,7 +402,7 @@ En el arranque inicial (migración + `ApplicationRunner`) se crean la aplicació
 | Fase | Alcance |
 |---|---|
 | **0. Base** | Esqueleto Maven + Spring Boot 4, Docker Compose, Flyway, CI, manejo global de errores, OpenAPI, ArchUnit |
-| **1. Usuarios y aplicaciones** | Módulos `user` y `application`: entidades, migraciones, CRUD de administración, seed de `auth-admin` |
+| **1. Usuarios y aplicaciones** | Módulos `user` y `apps`: entidades, migraciones, CRUD de administración, seed de `auth-admin` |
 | **2. Acceso** | Módulo `access`: concesiones, vigencia, asignación de roles, `/users/me/applications` |
 | **3. Autenticación** | Login por cliente, JWT RS256 con roles y permisos, JWKS, `/users/me`, autorización de endpoints de administración |
 | **4. Sesiones** | Refresh con rotación y detección de reutilización, cookie (web) o body (móvil), logout, logout-all, gestión de sesiones |
