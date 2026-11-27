@@ -55,6 +55,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     problem.setTitle(code.title());
     ex.details().forEach(problem::setProperty);
     enrich(problem, code, request.getRequestURI());
+    if (ex instanceof RateLimitedException limited) {
+      return ResponseEntity.status(problem.getStatus())
+          .header(HttpHeaders.RETRY_AFTER, String.valueOf(limited.retryAfterSeconds()))
+          .body(problem);
+    }
     return ResponseEntity.status(problem.getStatus()).body(problem);
   }
 

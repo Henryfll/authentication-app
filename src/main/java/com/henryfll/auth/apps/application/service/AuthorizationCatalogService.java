@@ -10,6 +10,9 @@ import com.henryfll.auth.apps.domain.Permission;
 import com.henryfll.auth.apps.domain.PermissionId;
 import com.henryfll.auth.apps.domain.Role;
 import com.henryfll.auth.apps.domain.RoleId;
+import com.henryfll.auth.shared.audit.AuditEvent;
+import com.henryfll.auth.shared.audit.AuditEventType;
+import com.henryfll.auth.shared.audit.AuditLog;
 import com.henryfll.auth.shared.error.ConflictException;
 import com.henryfll.auth.shared.error.ErrorCode;
 import com.henryfll.auth.shared.error.NotFoundException;
@@ -33,16 +36,19 @@ class AuthorizationCatalogService implements ManagePermissionsUseCase, ManageRol
   private final ApplicationRepository applications;
   private final PermissionRepository permissions;
   private final RoleRepository roles;
+  private final AuditLog audit;
   private final Clock clock;
 
   AuthorizationCatalogService(
       ApplicationRepository applications,
       PermissionRepository permissions,
       RoleRepository roles,
+      AuditLog audit,
       Clock clock) {
     this.applications = applications;
     this.permissions = permissions;
     this.roles = roles;
+    this.audit = audit;
     this.clock = clock;
   }
 
@@ -58,7 +64,11 @@ class AuthorizationCatalogService implements ManagePermissionsUseCase, ManageRol
           ErrorCode.PERMISSION_ALREADY_EXISTS,
           "Permission '" + permission.code() + "' already exists in this application");
     }
-    return permissions.save(permission);
+    Permission saved = permissions.save(permission);
+    audit.record(
+        AuditEvent.of(AuditEventType.PERMISSION_CREATED, null, applicationId.value())
+            .with("code", saved.code()));
+    return saved;
   }
 
   @Override
@@ -87,7 +97,9 @@ class AuthorizationCatalogService implements ManagePermissionsUseCase, ManageRol
         command.permissionIds() == null ? Set.of() : command.permissionIds();
     List<Permission> resolved = resolvePermissions(permissionIds);
     role.replacePermissions(resolved, now);
-    return view(roles.save(role), resolved);
+    RoleView created = view(roles.save(role), resolved);
+    audit.record(roleEvent(AuditEventType.ROLE_CREATED, created));
+    return created;
   }
 
   @Override
@@ -122,7 +134,15 @@ class AuthorizationCatalogService implements ManagePermissionsUseCase, ManageRol
     Role role = requireRole(applicationId, roleId);
     List<Permission> resolved = resolvePermissions(permissionIds);
     role.replacePermissions(resolved, clock.instant());
-    return view(roles.save(role), resolved);
+    RoleView updated = view(roles.save(role), resolved);
+    audit.record(roleEvent(AuditEventType.ROLE_PERMISSIONS_CHANGED, updated));
+    return updated;
+  }
+
+  private static AuditEvent roleEvent(AuditEventType type, RoleView view) {
+    return AuditEvent.of(type, null, view.role().applicationId().value())
+        .with("role", view.role().code())
+        .with("permissions", view.permissions().stream().map(Permission::code).toList());
   }
 
   /** Carga los permisos pedidos; falla si alguno no existe. */

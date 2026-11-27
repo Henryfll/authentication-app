@@ -9,6 +9,9 @@ import com.henryfll.auth.apps.domain.ApplicationClient;
 import com.henryfll.auth.apps.domain.ApplicationClientId;
 import com.henryfll.auth.apps.domain.ApplicationId;
 import com.henryfll.auth.apps.domain.ClientPlatform;
+import com.henryfll.auth.shared.audit.AuditEvent;
+import com.henryfll.auth.shared.audit.AuditEventType;
+import com.henryfll.auth.shared.audit.AuditLog;
 import com.henryfll.auth.shared.error.ConflictException;
 import com.henryfll.auth.shared.error.ErrorCode;
 import com.henryfll.auth.shared.error.NotFoundException;
@@ -29,16 +32,19 @@ class ApplicationClientService implements ManageClientsUseCase {
   private final ApplicationRepository applications;
   private final ApplicationClientRepository clients;
   private final SecretHasher secretHasher;
+  private final AuditLog audit;
   private final Clock clock;
 
   ApplicationClientService(
       ApplicationRepository applications,
       ApplicationClientRepository clients,
       SecretHasher secretHasher,
+      AuditLog audit,
       Clock clock) {
     this.applications = applications;
     this.clients = clients;
     this.secretHasher = secretHasher;
+    this.audit = audit;
     this.clock = clock;
   }
 
@@ -68,7 +74,9 @@ class ApplicationClientService implements ManageClientsUseCase {
             command.accessTokenTtl(),
             command.refreshTokenTtl(),
             clock.instant());
-    return new ClientWithSecret(clients.save(client), plainSecret);
+    ApplicationClient saved = clients.save(client);
+    audit.record(clientEvent(AuditEventType.CLIENT_CREATED, saved));
+    return new ClientWithSecret(saved, plainSecret);
   }
 
   @Override
@@ -88,7 +96,9 @@ class ApplicationClientService implements ManageClientsUseCase {
     if (command.status() != null) {
       client.changeStatus(command.status(), now);
     }
-    return clients.save(client);
+    ApplicationClient saved = clients.save(client);
+    audit.record(clientEvent(AuditEventType.CLIENT_UPDATED, saved).with("status", saved.status()));
+    return saved;
   }
 
   @Override
@@ -134,7 +144,15 @@ class ApplicationClientService implements ManageClientsUseCase {
     ApplicationClient client = requireClient(applicationId, clientId);
     String plainSecret = ClientSecrets.newSecret();
     client.rotateSecret(secretHasher.hash(plainSecret), clock.instant());
-    return new ClientWithSecret(clients.save(client), plainSecret);
+    ApplicationClient saved = clients.save(client);
+    audit.record(clientEvent(AuditEventType.CLIENT_SECRET_ROTATED, saved));
+    return new ClientWithSecret(saved, plainSecret);
+  }
+
+  private static AuditEvent clientEvent(AuditEventType type, ApplicationClient client) {
+    return AuditEvent.of(type, null, client.applicationId().value())
+        .with("clientId", client.clientId())
+        .with("platform", client.platform());
   }
 
   private String generateClientId(Application application, ClientPlatform platform) {

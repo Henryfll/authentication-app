@@ -95,6 +95,9 @@ class SecurityConfig {
                 .hasAuthority(permission("users:read"))
                 .requestMatchers(ADMIN + "/users", ADMIN + "/users/**")
                 .hasAuthority(permission("users:write"))
+                // Auditoría (solo lectura).
+                .requestMatchers(HttpMethod.GET, ADMIN + "/audit-events")
+                .hasAuthority(permission("audit:read"))
                 // Cualquier otra ruta de administración: denegada por defecto.
                 .requestMatchers(ADMIN + "/**")
                 .denyAll()

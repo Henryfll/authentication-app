@@ -12,5 +12,7 @@ public enum SessionRevocationReason {
   /** El acceso a la aplicación se suspendió, revocó o dejó de estar vigente. */
   ACCESS_REVOKED,
   /** La cuenta se bloqueó o deshabilitó. */
-  USER_INACTIVE
+  USER_INACTIVE,
+  /** El usuario cambió su contraseña o un administrador la restableció. */
+  PASSWORD_CHANGED
 }

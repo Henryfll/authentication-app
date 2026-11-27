@@ -7,6 +7,9 @@ import com.henryfll.auth.apps.domain.Application;
 import com.henryfll.auth.apps.domain.ApplicationCode;
 import com.henryfll.auth.apps.domain.ApplicationId;
 import com.henryfll.auth.apps.domain.Role;
+import com.henryfll.auth.shared.audit.AuditEvent;
+import com.henryfll.auth.shared.audit.AuditEventType;
+import com.henryfll.auth.shared.audit.AuditLog;
 import com.henryfll.auth.shared.error.ConflictException;
 import com.henryfll.auth.shared.error.ErrorCode;
 import com.henryfll.auth.shared.error.NotFoundException;
@@ -23,11 +26,14 @@ class ApplicationService implements ManageApplicationsUseCase {
 
   private final ApplicationRepository applications;
   private final RoleRepository roles;
+  private final AuditLog audit;
   private final Clock clock;
 
-  ApplicationService(ApplicationRepository applications, RoleRepository roles, Clock clock) {
+  ApplicationService(
+      ApplicationRepository applications, RoleRepository roles, AuditLog audit, Clock clock) {
     this.applications = applications;
     this.roles = roles;
+    this.audit = audit;
     this.clock = clock;
   }
 
@@ -39,8 +45,13 @@ class ApplicationService implements ManageApplicationsUseCase {
           ErrorCode.APPLICATION_CODE_ALREADY_EXISTS,
           "An application with code '" + code + "' already exists");
     }
-    return applications.save(
-        Application.create(code, command.name(), command.description(), clock.instant()));
+    Application app =
+        applications.save(
+            Application.create(code, command.name(), command.description(), clock.instant()));
+    audit.record(
+        AuditEvent.of(AuditEventType.APPLICATION_CREATED, null, app.id().value())
+            .with("code", app.code().value()));
+    return app;
   }
 
   @Override
@@ -68,7 +79,12 @@ class ApplicationService implements ManageApplicationsUseCase {
     if (command.selfRegistration() != null) {
       application.changeSelfRegistration(command.selfRegistration(), now);
     }
-    return applications.save(application);
+    Application saved = applications.save(application);
+    audit.record(
+        AuditEvent.of(AuditEventType.APPLICATION_UPDATED, null, saved.id().value())
+            .with("status", saved.status())
+            .with("selfRegistration", saved.selfRegistration()));
+    return saved;
   }
 
   @Override
