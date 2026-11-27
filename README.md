@@ -48,6 +48,10 @@ Para formatear el código antes de hacer commit:
 | `PORT` | `8080` | Puerto HTTP |
 | `SPRING_PROFILES_ACTIVE` | `local` | `local`, `test` o `prod` |
 | `OPENAPI_ENABLED` | `false` (solo en `prod`) | Expone Swagger UI en producción |
+| `AUTH_BOOTSTRAP_ADMIN_EMAIL` | _(vacío)_ | Email del primer `SUPER_ADMIN` de `auth-admin`. Vacío: no se crea |
+| `AUTH_BOOTSTRAP_ADMIN_PASSWORD` | _(vacío)_ | Su contraseña (mínimo 12 caracteres, sin contener el email) |
+
+El administrador inicial se crea al arrancar solo si no existe. Si ya existe, no se cambia su contraseña: solo se le concede el acceso a `auth-admin` si no lo tiene.
 
 ## Flujo de trabajo
 

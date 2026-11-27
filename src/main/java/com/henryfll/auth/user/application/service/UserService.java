@@ -16,6 +16,7 @@ import com.henryfll.auth.user.domain.User;
 import com.henryfll.auth.user.domain.UserId;
 import com.henryfll.auth.user.domain.UserStatus;
 import java.time.Clock;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,6 +58,12 @@ class UserService implements CreateUserUseCase, FindUsersUseCase, ChangeUserStat
     return users
         .findById(id)
         .orElseThrow(() -> new NotFoundException(ErrorCode.USER_NOT_FOUND, id));
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public Optional<User> findByEmail(String email) {
+    return users.findByEmail(new Email(email));
   }
 
   @Override

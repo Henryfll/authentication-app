@@ -5,6 +5,7 @@ import com.henryfll.auth.shared.pagination.PageResult;
 import com.henryfll.auth.user.domain.User;
 import com.henryfll.auth.user.domain.UserId;
 import com.henryfll.auth.user.domain.UserStatus;
+import java.util.Optional;
 
 /** Consultas sobre usuarios. */
 public interface FindUsersUseCase {
@@ -13,6 +14,9 @@ public interface FindUsersUseCase {
    * @throws com.henryfll.auth.shared.error.NotFoundException si no existe.
    */
   User get(UserId id);
+
+  /** Busca por email (sin distinguir mayúsculas). */
+  Optional<User> findByEmail(String email);
 
   PageResult<User> search(UserSearchCriteria criteria, PageQuery page);
 
