@@ -1,0 +1,131 @@
+package com.henryfll.auth.apps.application.service;
+
+import com.henryfll.auth.apps.application.port.in.ManageClientsUseCase;
+import com.henryfll.auth.apps.application.port.out.ApplicationClientRepository;
+import com.henryfll.auth.apps.application.port.out.ApplicationRepository;
+import com.henryfll.auth.apps.application.port.out.SecretHasher;
+import com.henryfll.auth.apps.domain.Application;
+import com.henryfll.auth.apps.domain.ApplicationClient;
+import com.henryfll.auth.apps.domain.ApplicationClientId;
+import com.henryfll.auth.apps.domain.ApplicationId;
+import com.henryfll.auth.apps.domain.ClientPlatform;
+import com.henryfll.auth.shared.error.ConflictException;
+import com.henryfll.auth.shared.error.ErrorCode;
+import com.henryfll.auth.shared.error.NotFoundException;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.List;
+import java.util.Locale;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@Transactional
+class ApplicationClientService implements ManageClientsUseCase {
+
+  private final ApplicationRepository applications;
+  private final ApplicationClientRepository clients;
+  private final SecretHasher secretHasher;
+  private final Clock clock;
+
+  ApplicationClientService(
+      ApplicationRepository applications,
+      ApplicationClientRepository clients,
+      SecretHasher secretHasher,
+      Clock clock) {
+    this.applications = applications;
+    this.clients = clients;
+    this.secretHasher = secretHasher;
+    this.clock = clock;
+  }
+
+  @Override
+  public ClientWithSecret create(ApplicationId applicationId, CreateClientCommand command) {
+    Application application = requireApplication(applicationId);
+    String clientId =
+        command.clientId() != null
+            ? command.clientId().strip().toLowerCase(Locale.ROOT)
+            : generateClientId(application, command.platform());
+    if (clients.existsByClientId(clientId)) {
+      throw new ConflictException(
+          ErrorCode.CLIENT_ID_ALREADY_EXISTS, "A client with id '" + clientId + "' already exists");
+    }
+    String plainSecret =
+        command.platform() != null && command.platform().isConfidential()
+            ? ClientSecrets.newSecret()
+            : null;
+    ApplicationClient client =
+        ApplicationClient.create(
+            applicationId,
+            clientId,
+            command.name(),
+            command.platform(),
+            plainSecret == null ? null : secretHasher.hash(plainSecret),
+            command.allowedOrigins(),
+            command.accessTokenTtl(),
+            command.refreshTokenTtl(),
+            clock.instant());
+    return new ClientWithSecret(clients.save(client), plainSecret);
+  }
+
+  @Override
+  public ApplicationClient update(
+      ApplicationId applicationId, ApplicationClientId clientId, UpdateClientCommand command) {
+    ApplicationClient client = requireClient(applicationId, clientId);
+    Instant now = clock.instant();
+    if (command.name() != null) {
+      client.rename(command.name(), now);
+    }
+    if (command.allowedOrigins() != null) {
+      client.changeAllowedOrigins(command.allowedOrigins(), now);
+    }
+    if (command.accessTokenTtl() != null || command.refreshTokenTtl() != null) {
+      client.changeTokenTtls(command.accessTokenTtl(), command.refreshTokenTtl(), now);
+    }
+    if (command.status() != null) {
+      client.changeStatus(command.status(), now);
+    }
+    return clients.save(client);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public List<ApplicationClient> list(ApplicationId applicationId) {
+    requireApplication(applicationId);
+    return clients.findByApplication(applicationId);
+  }
+
+  @Override
+  public ClientWithSecret rotateSecret(ApplicationId applicationId, ApplicationClientId clientId) {
+    ApplicationClient client = requireClient(applicationId, clientId);
+    String plainSecret = ClientSecrets.newSecret();
+    client.rotateSecret(secretHasher.hash(plainSecret), clock.instant());
+    return new ClientWithSecret(clients.save(client), plainSecret);
+  }
+
+  private String generateClientId(Application application, ClientPlatform platform) {
+    String prefix =
+        application.code().value()
+            + "-"
+            + (platform == null ? "client" : platform.name().toLowerCase(Locale.ROOT));
+    String candidate = prefix;
+    while (clients.existsByClientId(candidate)) {
+      candidate = prefix + "-" + ClientSecrets.newSuffix();
+    }
+    return candidate;
+  }
+
+  private Application requireApplication(ApplicationId id) {
+    return applications
+        .findById(id)
+        .orElseThrow(() -> new NotFoundException(ErrorCode.APPLICATION_NOT_FOUND, id));
+  }
+
+  private ApplicationClient requireClient(ApplicationId applicationId, ApplicationClientId id) {
+    requireApplication(applicationId);
+    return clients
+        .findById(id)
+        .filter(c -> c.applicationId().equals(applicationId))
+        .orElseThrow(() -> new NotFoundException(ErrorCode.CLIENT_NOT_FOUND, id));
+  }
+}

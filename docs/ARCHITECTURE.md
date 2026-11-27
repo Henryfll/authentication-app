@@ -32,7 +32,7 @@ Servicio centralizado de **identidad y control de acceso** que:
 | Tokens | Spring Security OAuth2 Resource Server (Nimbus JOSE) — **JWT RS256** | Firma asimétrica: las aplicaciones validan con la clave pública |
 | Hash de contraseñas | Argon2id vía `DelegatingPasswordEncoder` | Recomendación OWASP; permite migrar de algoritmo |
 | Validación | Jakarta Bean Validation | Integrado en Spring MVC |
-| Mapeo | MapStruct | Generado en compilación, sin reflexión |
+| Mapeo | Mappers explícitos en cada adaptador | El dominio es inmutable y se construye con fábricas (`create`/`restore`); el mapeo manual es más claro que MapStruct en este caso |
 | Rate limiting | Bucket4j | Protección contra fuerza bruta |
 | Documentación de la API | springdoc-openapi (Swagger UI) | API autodocumentada |
 | Observabilidad | Actuator + Micrometer, logs JSON | Health checks, métricas, auditoría |
@@ -160,8 +160,8 @@ application_clients
   confidential             BOOLEAN NOT NULL          -- true solo para SERVICE
   client_secret_hash       VARCHAR NULL
   allowed_origins          TEXT[]                    -- CORS para clientes WEB
-  access_token_ttl         INTERVAL NOT NULL DEFAULT '15 minutes'
-  refresh_token_ttl        INTERVAL NOT NULL DEFAULT '7 days'   -- en móvil puede ser mayor, p. ej. 30 días
+  access_token_ttl_seconds  INT NOT NULL              -- por defecto 900 (15 min); entre 1 min y 1 h
+  refresh_token_ttl_seconds INT NOT NULL              -- por defecto 7 días (web) o 30 días (móvil); entre 1 h y 90 días
   status                   VARCHAR NOT NULL          -- ACTIVE | INACTIVE
   created_at, updated_at, version
 
@@ -402,7 +402,7 @@ En el arranque inicial (migración + `ApplicationRunner`) se crean la aplicació
 | Fase | Alcance |
 |---|---|
 | **0. Base** | Esqueleto Maven + Spring Boot 4, Docker Compose, Flyway, CI, manejo global de errores, OpenAPI, ArchUnit |
-| **1. Usuarios y aplicaciones** | Módulos `user` y `apps`: entidades, migraciones, CRUD de administración, seed de `auth-admin` |
+| **1. Usuarios y aplicaciones** | Módulos `user` y `apps`: entidades, migraciones, CRUD de administración, seed de `auth-admin`. Los endpoints de administración quedan **sin proteger hasta la fase 3** |
 | **2. Acceso** | Módulo `access`: concesiones, vigencia, asignación de roles, `/users/me/applications` |
 | **3. Autenticación** | Login por cliente, JWT RS256 con roles y permisos, JWKS, `/users/me`, autorización de endpoints de administración |
 | **4. Sesiones** | Refresh con rotación y detección de reutilización, cookie (web) o body (móvil), logout, logout-all, gestión de sesiones |
