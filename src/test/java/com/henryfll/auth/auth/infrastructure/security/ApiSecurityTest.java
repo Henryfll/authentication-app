@@ -125,7 +125,8 @@ class ApiSecurityTest extends IntegrationTest {
                 ALL_ADMIN_PERMISSIONS,
                 past,
                 past.plusSeconds(60),
-                UUID.randomUUID()));
+                UUID.randomUUID(),
+                null));
     as(expired, get(USERS))
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.code").value("INVALID_TOKEN"));

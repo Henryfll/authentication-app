@@ -70,7 +70,7 @@ class SecurityConfig {
         .authorizeHttpRequests(auth ->
             auth.requestMatchers(HttpMethod.OPTIONS, "/**")
                 .permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/v1/auth/login")
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/auth/refresh")
                 .permitAll()
                 .requestMatchers(PUBLIC)
                 .permitAll()

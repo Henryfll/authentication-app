@@ -37,6 +37,9 @@ app:
       allow-ephemeral-key: false
     cors:
       origins-cache-ttl: 30s
+    refresh-cookie:
+      name: refresh_token
+      secure: true
   bootstrap:
     admin:
       email: ${AUTH_BOOTSTRAP_ADMIN_EMAIL:}
@@ -87,6 +90,9 @@ app:
   security:
     jwt:
       allow-ephemeral-key: true
+    refresh-cookie:
+      # En local se usa HTTP sin TLS: el navegador no enviaría una cookie Secure.
+      secure: false
 logging:
   level:
     com.henryfll.auth: DEBUG

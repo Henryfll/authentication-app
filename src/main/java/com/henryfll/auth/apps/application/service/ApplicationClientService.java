@@ -100,6 +100,12 @@ class ApplicationClientService implements ManageClientsUseCase {
 
   @Override
   @Transactional(readOnly = true)
+  public Optional<ApplicationClient> findById(ApplicationClientId id) {
+    return clients.findById(id);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
   public Optional<ApplicationClient> findByClientId(String clientId) {
     if (clientId == null || clientId.isBlank()) {
       return Optional.empty();

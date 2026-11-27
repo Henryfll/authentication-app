@@ -15,10 +15,12 @@ import com.henryfll.auth.user.application.port.out.UserRepository;
 import com.henryfll.auth.user.domain.Email;
 import com.henryfll.auth.user.domain.PasswordPolicy;
 import com.henryfll.auth.user.domain.User;
+import com.henryfll.auth.user.domain.UserDeactivatedEvent;
 import com.henryfll.auth.user.domain.UserId;
 import com.henryfll.auth.user.domain.UserStatus;
 import java.time.Clock;
 import java.util.Optional;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,10 +40,17 @@ class UserService
   private final Clock clock;
   private volatile String dummyHash;
 
-  UserService(UserRepository users, PasswordHasher passwordHasher, Clock clock) {
+  private final ApplicationEventPublisher events;
+
+  UserService(
+      UserRepository users,
+      PasswordHasher passwordHasher,
+      Clock clock,
+      ApplicationEventPublisher events) {
     this.users = users;
     this.passwordHasher = passwordHasher;
     this.clock = clock;
+    this.events = events;
   }
 
   @Override
@@ -111,6 +120,10 @@ class UserService
   public User changeStatus(UserId id, UserStatus status) {
     User user = get(id);
     user.changeStatus(status, clock.instant());
-    return users.save(user);
+    User saved = users.save(user);
+    if (saved.status() != UserStatus.ACTIVE) {
+      events.publishEvent(new UserDeactivatedEvent(saved.id().value(), saved.status()));
+    }
+    return saved;
   }
 }

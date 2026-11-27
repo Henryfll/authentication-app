@@ -109,7 +109,8 @@ public abstract class IntegrationTest {
             permissions,
             now,
             now.plus(Duration.ofHours(1)),
-            UUID.randomUUID()));
+            UUID.randomUUID(),
+            null));
   }
 
   protected static String bearer(String token) {

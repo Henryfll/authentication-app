@@ -21,6 +21,9 @@ public interface ManageClientsUseCase {
 
   List<ApplicationClient> list(ApplicationId applicationId);
 
+  /** Busca un cliente por su identificador interno. */
+  Optional<ApplicationClient> findById(ApplicationClientId id);
+
   /** Busca un cliente por su identificador público ({@code client_id}). */
   Optional<ApplicationClient> findByClientId(String clientId);
 

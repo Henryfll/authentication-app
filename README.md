@@ -53,6 +53,7 @@ Para formatear el código antes de hacer commit:
 | `JWT_PRIVATE_KEY` | _(vacío)_ | Clave privada RSA (≥ 2048 bits, PEM PKCS#8) para firmar los tokens. **Obligatoria en `prod`**. En `local` y `test`, si falta, se genera una clave temporal |
 | `JWT_KEY_ID` | `auth-key-1` | `kid` de la clave, publicado en `/.well-known/jwks.json` |
 | `JWT_ISSUER` | `http://localhost:8080` | Valor del claim `iss` |
+| `APP_SECURITY_REFRESH_COOKIE_SECURE` | `true` (`false` en `local`) | Atributo `Secure` de la cookie del refresh token. Solo debe desactivarse en desarrollo con HTTP |
 
 El administrador inicial se crea al arrancar solo si no existe. Si ya existe, no se cambia su contraseña: solo se le concede el acceso a `auth-admin` si no lo tiene.
 
@@ -71,6 +72,15 @@ curl -X POST http://localhost:8080/api/v1/auth/login -H 'Content-Type: applicati
 ```
 
 La respuesta incluye `accessToken`, un JWT que se envía como `Authorization: Bearer <token>`. Lleva los roles y permisos del usuario en la aplicación del cliente. Las demás aplicaciones validan estos tokens con la clave pública de `/.well-known/jwks.json`.
+
+El login también abre una sesión y entrega un refresh token. Cómo se entrega depende del tipo de cliente:
+
+| Cliente | Dónde llega el refresh token | Cómo renovar (`POST /api/v1/auth/refresh` con `X-Client-Id`) |
+|---|---|---|
+| `WEB` | Cookie `refresh_token` (`HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/api/v1/auth`) | El navegador envía la cookie (`credentials: 'include'`) |
+| `MOBILE` | Campo `refreshToken` del body | Body `{"refreshToken": "..."}`; guardarlo en Keychain o Keystore |
+
+Cada refresh token sirve una sola vez. Si se reutiliza, se cierra la sesión completa. Para cerrar sesión se usa `POST /api/v1/auth/logout` (la sesión actual) o `/logout-all` (todas), y `GET /api/v1/users/me/sessions` lista los dispositivos con sesión abierta.
 
 ## Flujo de trabajo
 
