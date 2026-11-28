@@ -73,7 +73,7 @@ Hay que resolverlas antes de empezar. Las recomendaciones son propuestas, no dec
 | D5 | **Aplicación del portal de usuarios** | Reutilizar `auth-admin` · **Crear una aplicación `portal`** | **Crear `portal`** con su propio cliente web | Para hacer login, un usuario necesita acceso efectivo a la aplicación del cliente. Si los usuarios corrientes entran por `auth-admin`, hay que darles acceso a la aplicación de administración (sin roles) |
 | D6 | **¿Login compartido para otras aplicaciones (C)?** | Cada aplicación implementa el suyo · Pantalla de login alojada por este frontend | Cada aplicación el suyo, por ahora | Sin SSO, un login alojado no evita que cada aplicación gestione su sesión |
 | D7 | **Idiomas** | Solo español · español + inglés | Español, con textos externalizados | Los mensajes del backend están en inglés (sección 8) |
-| D8 | **Resolver los huecos del contrato OpenAPI** | Antes de empezar · Con tipos manuales | **Antes de empezar los prerrequisitos P0** (sección 3.3) | Sin ello, el cliente generado tiene tipos incorrectos |
+| D8 | **Huecos del contrato OpenAPI** | — | **Resuelto para los P0**; decidir cuándo hacer los P1 (sección 3.3) | Los `operationId` inestables (P1) conviene arreglarlos antes de generar código |
 
 ---
 
@@ -89,7 +89,7 @@ Se arrancó el backend (`developer`, perfil `local`) y se analizó la especifica
 | `GET /swagger-ui.html` | **200** (redirige a la interfaz de Swagger) |
 | `GET /v3/api-docs.yaml` | **401** (ver hueco 7) |
 | Versión del formato | **OpenAPI 3.1.0** |
-| Contenido | **27 rutas** (**35 operaciones**), **31 esquemas** (14 de petición y 17 de respuesta o auxiliares) |
+| Contenido | **27 rutas** (**35 operaciones**), **33 esquemas**: 14 de petición, 17 de respuesta o auxiliares y los 2 de error (`Problem`, `ProblemFieldError`) |
 | Seguridad | Esquema `bearer` (HTTP, JWT) |
 | Etiquetas | Todas las operaciones tienen etiqueta (`Auth`, `Me`, `Admin · …`) |
 | Identificadores de operación | Únicos (sin duplicados) |
@@ -99,7 +99,7 @@ Se arrancó el backend (`developer`, perfil `local`) y se analizó la especifica
 
 > **En producción el contrato está desactivado por defecto** (`OPENAPI_ENABLED=false`). El frontend debe generarse contra un backend local o de desarrollo, o contra una copia versionada del contrato.
 
-**Conclusión: el OpenAPI existe y es utilizable como base**, pero tiene huecos que degradan el cliente generado.
+**Conclusión: el OpenAPI existe y es utilizable.** La primera verificación encontró cuatro huecos graves (P0) que degradaban el cliente generado; **ya están corregidos** y los fija `OpenApiContractTest`. Quedan cuatro de prioridad menor (P1), sección 3.3.
 
 ### 3.2 Qué está bien
 
@@ -107,23 +107,28 @@ Se arrancó el backend (`developer`, perfil `local`) y se analizó la especifica
 - Los cuerpos de petición declaran los campos obligatorios (`required`) y los límites de longitud.
 - Los parámetros de ruta, consulta, cabecera y cookie están descritos.
 - Los esquemas se nombran de forma estable y clara (`UserResponse`, `PageResponseUserResponse`…).
+- **Los estados de éxito son los reales** (`201` al crear, `204` sin cuerpo, `200`/`201` al conceder un acceso) y las creaciones declaran la cabecera `Location`.
+- **Los errores están documentados:** cada operación declara sus respuestas `400`, `401`, `403`, `404`, `409`, `422`, `429` y `500` según corresponda, con el esquema `Problem` y los códigos posibles de cada estado. `Problem.code` es una enumeración con los 33 códigos.
+- **Los campos de respuesta son obligatorios por defecto.** Los que pueden valer `null` se declaran `T | null`, y los que el servidor omite cuando están vacíos (`TokenResponse.refreshToken`, `ClientResponse.clientSecret`) son opcionales.
+- **Login, refresh y JWKS están marcados como públicos** (`security: []`).
+- Las cabeceras `Set-Cookie` del login, el refresh y el logout están descritas.
 
 ### 3.3 Huecos detectados
 
 | # | Hallazgo | Impacto en el frontend | Prioridad |
 |---|---|---|---|
-| 1 | **Todas las operaciones declaran la respuesta `200`**, pero varias devuelven **`201`** (crear usuario, aplicación, cliente, rol, permiso; conceder acceso nuevo) o **`204` sin cuerpo** (`logout`, `logout-all`, revocar acceso, cambiar o restablecer contraseña, cerrar una sesión) | Un cliente generado espera cuerpo JSON en un `204` y puede fallar al procesarlo. Los tipos de retorno de las creaciones son incorrectos | **P0** |
-| 2 | **Ningún error está documentado**: no hay respuestas `4xx`/`5xx` ni esquema del cuerpo de error (Problem Details) | El cliente generado no tipa los errores. Hay que escribir el tipo a mano (sección 8) | **P0** |
-| 3 | **Todos los campos de las respuestas son opcionales** (ninguno de los 17 esquemas de respuesta y auxiliares declara `required`) | En TypeScript, `accessToken?: string`, `id?: string`… Obliga a comprobar `undefined` en todas partes | **P0** |
-| 4 | **Login, refresh y JWKS aparecen como protegidos** (heredan la seguridad `bearer` global) aunque son públicos | Un cliente generado puede exigir un token para hacer login | **P0** |
+| 1 | **Todas las operaciones declaran la respuesta `200`**, pero varias devuelven **`201`** (crear usuario, aplicación, cliente, rol, permiso; conceder acceso nuevo) o **`204` sin cuerpo** (`logout`, `logout-all`, revocar acceso, cambiar o restablecer contraseña, cerrar una sesión) | Un cliente generado espera cuerpo JSON en un `204` y puede fallar al procesarlo. Los tipos de retorno de las creaciones son incorrectos | **P0** ✔ corregido |
+| 2 | **Ningún error está documentado**: no hay respuestas `4xx`/`5xx` ni esquema del cuerpo de error (Problem Details) | El cliente generado no tipa los errores. Hay que escribir el tipo a mano (sección 8) | **P0** ✔ corregido |
+| 3 | **Todos los campos de las respuestas son opcionales** (ninguno de los 17 esquemas de respuesta y auxiliares declara `required`) | En TypeScript, `accessToken?: string`, `id?: string`… Obliga a comprobar `undefined` en todas partes | **P0** ✔ corregido |
+| 4 | **Login, refresh y JWKS aparecen como protegidos** (heredan la seguridad `bearer` global) aunque son públicos | Un cliente generado puede exigir un token para hacer login | **P0** ✔ corregido |
 | 5 | **Los `operationId` son autogenerados** y poco claros: `list`, `list_1`, `list_2`, `list_3`, `list_4`, `get`, `get_1`, `get_2`, `create`, `create_1`, `create_2`, `update`, `update_1`, `revoke`, `revoke_1` | Los nombres de las funciones generadas serían ilegibles e **inestables**: añadir un controlador renumera los demás y rompe el código del frontend | P1 |
 | 6 | **Los tipos de contenido de respuesta son `*/*`** en lugar de `application/json` | Algunos generadores no reconocen el cuerpo como JSON | P1 |
 | 7 | **`/v3/api-docs.yaml` devuelve `401`** (la ruta no está en la lista pública) | Las herramientas que piden el YAML no pueden descargarlo sin token. El JSON sí funciona | P1 |
 | 8 | **`info.version` es `dev`** y la URL del servidor es `http://localhost:8080` («Generated server url») | El contrato no indica qué versión de la API es ni dónde está | P1 |
-| 9 | **La entrega del refresh token por cookie no se puede expresar en el esquema**: `TokenResponse.refreshToken` aparece siempre, pero **para clientes web nunca viene en el cuerpo** (va en `Set-Cookie`) | El cliente web debe ignorar ese campo. Se explica en la sección 5 | Informativo |
+| 9 | **La entrega del refresh token por cookie no se puede expresar en el esquema**: `TokenResponse.refreshToken` es **opcional** en el esquema: **para clientes web nunca viene en el cuerpo** (va en `Set-Cookie`, que ahora sí está descrita en las respuestas) | El cliente web debe ignorar ese campo. Se explica en la sección 5 | Informativo |
 | 10 | **`Retry-After` no es legible desde el navegador** (CORS no lo expone); `Set-Cookie` tampoco lo es nunca | Para el tiempo de espera de un `429`, usar `retryAfterSeconds` del cuerpo (sección 8) | Informativo |
 
-**Prerrequisitos de backend (P0).** Antes de generar el cliente, el backend debería corregir los huecos 1 a 4. Son cambios pequeños y localizados en la capa web del backend (anotaciones de OpenAPI), sin lógica de negocio. P1 puede hacerse en paralelo.
+**Estado.** Los huecos 1 a 4 (P0) están corregidos en el backend con anotaciones de OpenAPI en la capa web, sin cambiar la lógica de negocio. `OpenApiContractTest` los fija: compara el contrato con lo que la API devuelve de verdad (estados, errores reales frente al esquema `Problem`, campos obligatorios y anulables). Quedan los P1 (5 a 8). Ninguno impide generar el cliente, pero conviene resolver el **5** (`operationId` inestables) **antes** de que el frontend dependa de los nombres de las funciones generadas.
 
 ### 3.4 Cómo obtener y usar el contrato
 
@@ -135,7 +140,7 @@ Se arrancó el backend (`developer`, perfil `local`) y se analizó la especifica
 curl -s http://localhost:8080/v3/api-docs -o openapi.json
 ```
 
-**Propuesta de generación del cliente** (herramientas habituales; **no se han ejecutado en este repositorio**):
+**Generación del cliente.** `openapi-typescript` 7.13.0 se ejecutó sobre el contrato corregido y genera tipos que **compilan con `tsc --strict`**: los campos obligatorios dejan de llevar `?`, los nullables son `string | null`, las creaciones tipan `201`, los errores tipan `Problem` y `Problem.code` es una unión de los 33 códigos. Las demás herramientas (`openapi-fetch`, `orval`) no se han probado en este repositorio.
 
 ```bash
 # Tipos TypeScript a partir del contrato
@@ -151,7 +156,7 @@ Alternativas: `openapi-fetch` para las llamadas tipadas, u `orval` para generar 
 | OA-01 | El frontend **no escribe a mano** los tipos de petición y respuesta: se generan del contrato |
 | OA-02 | El contrato se **versiona en el repositorio del frontend** (copia de `openapi.json`) y se actualiza de forma explícita |
 | OA-03 | La integración continua **falla si los tipos generados difieren** de los que hay en el repositorio (detecta cambios no regenerados) |
-| OA-04 | Mientras los huecos P0 existan, se aplica una **capa de tipos manual** encima (tipo de error, campos obligatorios, estados `201`/`204`) en **un único archivo**, para eliminarla cuando el backend los corrija |
+| OA-04 | **No hay capa manual de tipos** sobre el cliente generado. Si se detecta una discrepancia entre el contrato y el comportamiento real, se **corrige en el backend** (y se añade al test de contrato), no en el frontend |
 | OA-05 | El cliente HTTP **no depende de los códigos de estado del contrato** para decidir el flujo; usa el estado real de la respuesta |
 
 ---
@@ -369,7 +374,7 @@ La consola exige un token con `aud = auth-admin`. Un token de **otra aplicación
 
 Prefijo común: `/api/v1`. Los identificadores son UUID y las fechas, ISO-8601 en UTC (`2026-11-28T10:15:30Z`). Los cuerpos son `application/json`.
 
-> **Fuente de verdad de los campos:** el contrato OpenAPI. Esta tabla da el **estado HTTP real** (el contrato dice `200` en todos; ver hueco 1) y las reglas que el contrato no expresa.
+> **Fuente de verdad de los campos:** el contrato OpenAPI. Esta tabla da el **estado HTTP real**, que **coincide con el contrato**, y las reglas que el contrato no expresa.
 
 ### 7.1 Autenticación y sesión
 
@@ -444,7 +449,7 @@ Prefijo común: `/api/v1`. Los identificadores son UUID y las fechas, ISO-8601 e
 - **Paginación:** `page` empieza en `0`; `size` vale `20` por defecto y **máximo `100`**. La respuesta es `{ content[], page, size, totalElements, totalPages }`.
 - **PATCH:** solo se modifican los campos **enviados**. Un campo `null` o ausente significa «sin cambios»; **no se puede vaciar** un valor con `PATCH` (por ejemplo, borrar una descripción).
 - **PUT:** reemplaza la configuración completa (roles de un acceso, permisos de un rol).
-- **Campos nulos:** en general los campos sin valor (`firstName`, `description`, `validUntil`…) **se envían como `null`**. **Excepción:** `TokenResponse` y `ClientResponse` **omiten** los campos vacíos (por ejemplo, `refreshToken` en un cliente web o `clientSecret` en un cliente que no es `SERVICE`). Los tipos del cliente deben admitir ambos casos.
+- **Campos nulos:** en general los campos sin valor (`firstName`, `description`, `validUntil`…) **se envían como `null`**. **Excepción:** `TokenResponse` y `ClientResponse` **omiten** los campos vacíos (por ejemplo, `refreshToken` en un cliente web o `clientSecret` en un cliente que no es `SERVICE`). El contrato lo refleja: los primeros son `T | null` y obligatorios; los omitidos son opcionales.
 - **Operaciones que no existen:** borrar usuarios, aplicaciones, clientes, roles o permisos; editar un rol o un permiso; obtener **un solo** cliente o permiso (hay que filtrar la lista); editar el perfil propio.
 
 ---
@@ -453,7 +458,7 @@ Prefijo común: `/api/v1`. Los identificadores son UUID y las fechas, ISO-8601 e
 
 ### 8.1 Formato
 
-Todos los errores son **Problem Details (RFC 9457)**, con `Content-Type: application/problem+json`:
+Todos los errores son **Problem Details (RFC 9457)**, con `Content-Type: application/problem+json`. El contrato OpenAPI los declara con el esquema `Problem`:
 
 ```json
 {
@@ -476,6 +481,7 @@ Todos los errores son **Problem Details (RFC 9457)**, con `Content-Type: applica
 | `timestamp` | Útil para soporte |
 | `errors[]` | Solo en errores de validación (`VALIDATION_ERROR`, `PASSWORD_POLICY_VIOLATION`, `INVALID_CURRENT_PASSWORD`): `{ field, message }` por campo |
 | `retryAfterSeconds` | Solo en `429` |
+| `id` | Solo en los `404` de negocio: el identificador que no se encontró (un texto; en `ACCESS_NOT_FOUND` es `idUsuario@idAplicación`) |
 | `type` | Puede venir (`about:blank`) o no |
 
 ### 8.2 Códigos y acción de la interfaz
@@ -701,7 +707,7 @@ Resumen de lo que el backend **no hace o hace de forma distinta a lo esperable**
 | L12 | **Los access tokens no se pueden revocar**: tras cerrar sesión siguen válidos hasta caducar | Aceptable para 15 min; documentarlo |
 | L13 | **Una sola clave de firma**. Cambiarla invalida los access tokens vigentes (los clientes se recuperan renovando) | Una oleada de `401 INVALID_TOKEN` se resuelve con AUTH-05 |
 | L14 | **Límites de intentos por instancia** y por IP | Varios usuarios tras la misma IP comparten el límite |
-| L15 | **Contrato OpenAPI con los huecos de la sección 3.3**, y desactivado en producción | Resolver P0 antes de generar el cliente |
+| L15 | **Contrato OpenAPI con los huecos P1 de la sección 3.3**, y desactivado en producción | Generar el cliente contra un backend local o una copia versionada (OA-02) |
 | L16 | **Los mensajes (`title`, `detail`) están en inglés** | Traducir por `code` |
 | L17 | **No hay notificaciones en tiempo real** | Sin actualización automática: botón de recarga y refresco al volver a la pestaña |
 | L18 | El **refresh token web exige `Origin` registrado** y la cookie es `SameSite=Strict` | Mismo sitio obligatorio (D4) |
@@ -712,7 +718,7 @@ Resumen de lo que el backend **no hace o hace de forma distinta a lo esperable**
 
 | Fase | Contenido | Criterio de aceptación |
 |---|---|---|
-| **F0. Decisiones y contrato** | Resolver D1 a D8. **Backend: corregir los huecos P0 del OpenAPI** (3.3). Registrar los clientes y orígenes de desarrollo | Contrato regenerado con estados, errores, campos obligatorios y rutas públicas correctos |
+| **F0. Decisiones y contrato** | Resolver D1 a D8. ~~Backend: corregir los huecos P0 del OpenAPI~~ (hecho, 3.3); decidir los P1. Registrar los clientes y orígenes de desarrollo | Contrato regenerado con estados, errores, campos obligatorios y rutas públicas correctos |
 | **F1. Base** | Proyecto, TypeScript estricto, cliente generado (OA-01 a OA-03), configuración en tiempo de ejecución, integración continua, sistema de diseño base e i18n | CI en verde, con la comprobación de tipos generados |
 | **F2. Autenticación** | Login, restauración de sesión, refresh proactivo y reactivo, un solo refresh a la vez, logout, sincronización entre pestañas, guardas de rutas, manejo de errores (sección 8) | Pruebas unitarias y e2e de QA-02 y QA-04 en verde, incluida la reutilización de un refresh token |
 | **F3. Portal del usuario** | RF-10 a RF-13 | Un usuario inicia sesión, cambia su contraseña y cierra una sesión ajena |

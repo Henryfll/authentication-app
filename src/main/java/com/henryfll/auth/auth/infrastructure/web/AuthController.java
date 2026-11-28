@@ -1,5 +1,8 @@
 package com.henryfll.auth.auth.infrastructure.web;
 
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.NOT_REQUIRED;
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.henryfll.auth.auth.application.port.in.AuthTokens;
 import com.henryfll.auth.auth.application.port.in.LoginUseCase;
@@ -7,8 +10,14 @@ import com.henryfll.auth.auth.application.port.in.LoginUseCase.LoginCommand;
 import com.henryfll.auth.auth.application.port.in.ManageSessionsUseCase;
 import com.henryfll.auth.auth.application.port.in.RefreshUseCase;
 import com.henryfll.auth.auth.application.port.in.RefreshUseCase.RefreshCommand;
+import com.henryfll.auth.shared.error.ErrorCode;
+import com.henryfll.auth.shared.web.ErrorResponses;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -57,6 +66,24 @@ class AuthController {
   }
 
   @PostMapping("/login")
+  @SecurityRequirements
+  @ApiResponse(
+      responseCode = "200",
+      description = "Sesión abierta",
+      headers =
+          @Header(
+              name = "Set-Cookie",
+              description =
+                  "Solo en clientes WEB: cookie `refresh_token` (HttpOnly, SameSite=Strict,"
+                      + " Path=/api/v1/auth)",
+              schema = @Schema(type = "string")))
+  @ErrorResponses({
+    ErrorCode.AUTH_INVALID_CLIENT,
+    ErrorCode.AUTH_INVALID_CREDENTIALS,
+    ErrorCode.AUTH_ACCOUNT_INACTIVE,
+    ErrorCode.ACCESS_NOT_GRANTED,
+    ErrorCode.TOO_MANY_REQUESTS
+  })
   @Operation(
       summary = "Login con email y contraseña",
       description =
@@ -82,6 +109,25 @@ class AuthController {
   }
 
   @PostMapping("/refresh")
+  @SecurityRequirements
+  @ApiResponse(
+      responseCode = "200",
+      description = "Tokens renovados (el refresh token anterior deja de valer)",
+      headers =
+          @Header(
+              name = "Set-Cookie",
+              description =
+                  "Solo en clientes WEB: cookie `refresh_token` (HttpOnly, SameSite=Strict,"
+                      + " Path=/api/v1/auth)",
+              schema = @Schema(type = "string")))
+  @ErrorResponses({
+    ErrorCode.AUTH_INVALID_CLIENT,
+    ErrorCode.INVALID_REFRESH_TOKEN,
+    ErrorCode.REFRESH_TOKEN_REUSED,
+    ErrorCode.AUTH_ACCOUNT_INACTIVE,
+    ErrorCode.ACCESS_NOT_GRANTED,
+    ErrorCode.TOO_MANY_REQUESTS
+  })
   @Operation(
       summary = "Renovar los tokens",
       description =
@@ -109,6 +155,14 @@ class AuthController {
   }
 
   @PostMapping("/logout")
+  @ApiResponse(
+      responseCode = "204",
+      description = "Sesión cerrada",
+      headers =
+          @Header(
+              name = "Set-Cookie",
+              description = "Borra la cookie `refresh_token` de los clientes WEB",
+              schema = @Schema(type = "string")))
   @Operation(summary = "Cerrar la sesión actual (la del access token)")
   ResponseEntity<Void> logout(@AuthenticationPrincipal Jwt jwt) {
     String sid = jwt.getClaimAsString("sid");
@@ -119,6 +173,14 @@ class AuthController {
   }
 
   @PostMapping("/logout-all")
+  @ApiResponse(
+      responseCode = "204",
+      description = "Todas las sesiones cerradas",
+      headers =
+          @Header(
+              name = "Set-Cookie",
+              description = "Borra la cookie `refresh_token` de los clientes WEB",
+              schema = @Schema(type = "string")))
   @Operation(summary = "Cerrar todas las sesiones del usuario en todos sus dispositivos")
   ResponseEntity<Void> logoutAll(@AuthenticationPrincipal Jwt jwt) {
     sessions.logoutAll(UUID.fromString(jwt.getSubject()));
@@ -172,14 +234,14 @@ class AuthController {
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
   record TokenResponse(
-      String accessToken,
-      String tokenType,
-      long expiresIn,
-      Instant expiresAt,
-      String refreshToken,
-      Instant refreshTokenExpiresAt,
-      String application,
-      UUID sessionId) {
+      @Schema(requiredMode = REQUIRED) String accessToken,
+      @Schema(requiredMode = REQUIRED) String tokenType,
+      @Schema(requiredMode = REQUIRED) long expiresIn,
+      @Schema(requiredMode = REQUIRED) Instant expiresAt,
+      @Schema(requiredMode = NOT_REQUIRED) String refreshToken,
+      @Schema(requiredMode = REQUIRED) Instant refreshTokenExpiresAt,
+      @Schema(requiredMode = REQUIRED) String application,
+      @Schema(requiredMode = REQUIRED) UUID sessionId) {
 
     @Override
     public String toString() {

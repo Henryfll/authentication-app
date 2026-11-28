@@ -1,6 +1,10 @@
 package com.henryfll.auth.user.infrastructure.web;
 
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
+
+import com.henryfll.auth.shared.error.ErrorCode;
 import com.henryfll.auth.shared.pagination.PageQuery;
+import com.henryfll.auth.shared.web.ErrorResponses;
 import com.henryfll.auth.shared.web.PageResponse;
 import com.henryfll.auth.user.application.port.in.ChangePasswordUseCase;
 import com.henryfll.auth.user.application.port.in.ChangeUserStatusUseCase;
@@ -12,6 +16,9 @@ import com.henryfll.auth.user.domain.User;
 import com.henryfll.auth.user.domain.UserId;
 import com.henryfll.auth.user.domain.UserStatus;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -54,6 +61,15 @@ class AdminUserController {
   }
 
   @PostMapping
+  @ApiResponse(
+      responseCode = "201",
+      description = "Usuario creado",
+      headers =
+          @Header(
+              name = "Location",
+              description = "URL del recurso creado",
+              schema = @Schema(type = "string")))
+  @ErrorResponses({ErrorCode.USER_EMAIL_ALREADY_EXISTS, ErrorCode.PASSWORD_POLICY_VIOLATION})
   @Operation(summary = "Crear un usuario")
   ResponseEntity<UserResponse> create(@Valid @RequestBody CreateUserRequest request) {
     User user =
@@ -77,12 +93,14 @@ class AdminUserController {
   }
 
   @GetMapping("/{userId}")
+  @ErrorResponses({ErrorCode.USER_NOT_FOUND})
   @Operation(summary = "Obtener un usuario")
   UserResponse get(@PathVariable UUID userId) {
     return UserResponse.from(findUsers.get(new UserId(userId)));
   }
 
   @PatchMapping("/{userId}/status")
+  @ErrorResponses({ErrorCode.USER_NOT_FOUND, ErrorCode.CONFLICT})
   @Operation(summary = "Cambiar el estado de un usuario")
   UserResponse changeStatus(
       @PathVariable UUID userId, @Valid @RequestBody ChangeUserStatusRequest request) {
@@ -90,6 +108,10 @@ class AdminUserController {
   }
 
   @PutMapping("/{userId}/password")
+  @ApiResponse(
+      responseCode = "204",
+      description = "Contraseña restablecida. Se cierran todas las sesiones del usuario")
+  @ErrorResponses({ErrorCode.USER_NOT_FOUND, ErrorCode.PASSWORD_POLICY_VIOLATION})
   @Operation(
       summary = "Restablecer la contraseña de un usuario",
       description =
@@ -124,14 +146,14 @@ class AdminUserController {
   record ChangeUserStatusRequest(@NotNull UserStatus status) {}
 
   record UserResponse(
-      UUID id,
-      String email,
-      String firstName,
-      String lastName,
-      UserStatus status,
-      boolean emailVerified,
-      Instant createdAt,
-      Instant updatedAt) {
+      @Schema(requiredMode = REQUIRED) UUID id,
+      @Schema(requiredMode = REQUIRED) String email,
+      @Schema(requiredMode = REQUIRED, nullable = true) String firstName,
+      @Schema(requiredMode = REQUIRED, nullable = true) String lastName,
+      @Schema(requiredMode = REQUIRED) UserStatus status,
+      @Schema(requiredMode = REQUIRED) boolean emailVerified,
+      @Schema(requiredMode = REQUIRED) Instant createdAt,
+      @Schema(requiredMode = REQUIRED) Instant updatedAt) {
 
     static UserResponse from(User user) {
       return new UserResponse(

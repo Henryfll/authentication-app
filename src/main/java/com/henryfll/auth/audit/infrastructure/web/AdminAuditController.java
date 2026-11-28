@@ -1,5 +1,7 @@
 package com.henryfll.auth.audit.infrastructure.web;
 
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
+
 import com.henryfll.auth.audit.application.port.in.QueryAuditEventsUseCase;
 import com.henryfll.auth.audit.application.port.in.QueryAuditEventsUseCase.AuditQuery;
 import com.henryfll.auth.audit.domain.AuditEntry;
@@ -7,6 +9,7 @@ import com.henryfll.auth.shared.audit.AuditEventType;
 import com.henryfll.auth.shared.pagination.PageQuery;
 import com.henryfll.auth.shared.web.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.Instant;
 import java.util.Map;
@@ -48,14 +51,14 @@ class AdminAuditController {
   }
 
   record AuditEventResponse(
-      UUID id,
-      AuditEventType type,
-      UUID actorUserId,
-      UUID targetUserId,
-      UUID applicationId,
-      String ipAddress,
-      Map<String, Object> details,
-      Instant createdAt) {
+      @Schema(requiredMode = REQUIRED) UUID id,
+      @Schema(requiredMode = REQUIRED) AuditEventType type,
+      @Schema(requiredMode = REQUIRED, nullable = true) UUID actorUserId,
+      @Schema(requiredMode = REQUIRED, nullable = true) UUID targetUserId,
+      @Schema(requiredMode = REQUIRED, nullable = true) UUID applicationId,
+      @Schema(requiredMode = REQUIRED, nullable = true) String ipAddress,
+      @Schema(requiredMode = REQUIRED) Map<String, Object> details,
+      @Schema(requiredMode = REQUIRED) Instant createdAt) {
 
     static AuditEventResponse from(AuditEntry e) {
       return new AuditEventResponse(

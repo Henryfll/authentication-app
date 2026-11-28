@@ -3,6 +3,7 @@ package com.henryfll.auth.auth.infrastructure.security;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.Duration;
 import java.util.Map;
@@ -23,6 +24,7 @@ class JwksController {
   }
 
   @GetMapping("/.well-known/jwks.json")
+  @SecurityRequirements
   @Operation(summary = "Claves públicas (JWKS) para validar los access tokens")
   ResponseEntity<Map<String, Object>> jwks() {
     return ResponseEntity.ok()
