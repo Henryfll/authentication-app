@@ -1,6 +1,6 @@
 # Requerimientos del frontend
 
-> **Estado:** borrador para revisión · **Fecha:** 2026-11-28 · **Backend de referencia:** rama `developer` (v1, fases 0 a 5 y despliegue)
+> **Estado:** borrador para revisión · **Fecha:** 2026-11-28 · **Backend de referencia:** rama `developer` (v1, fases 0 a 5 y despliegue) · **Alcance:** consola de administración web, solo para administradores
 >
 > Este documento reúne lo que hace falta saber y decidir para construir un frontend que consuma este backend. Todo lo que se afirma sobre el comportamiento del servicio **se ha comprobado contra el backend en marcha** (secciones 3.1 y 4.4), salvo lo que se marca expresamente como supuesto o propuesta.
 >
@@ -35,15 +35,28 @@ Puntos que condicionan todo el diseño del frontend:
 - **El token es por aplicación.** Un access token lleva `aud` (código de la aplicación) y solo los roles y permisos de esa aplicación.
 - **La propia plataforma es una aplicación** (`auth-admin`). Administrar usuarios, aplicaciones, roles y accesos exige un token emitido para `auth-admin` con los permisos correspondientes.
 
-### Qué se puede construir
+### Alcance
 
-| Producto | Descripción | Usuarios |
+**Este frontend es una consola de administración web, de uso exclusivo para administradores.** Los usuarios finales no acceden a ella.
+
+| Producto | Estado | Detalle |
 |---|---|---|
-| **A. Consola de administración** | Gestión de usuarios, aplicaciones, clientes, roles, permisos, accesos y auditoría | Administradores (token de `auth-admin`) |
-| **B. Portal del usuario** | Perfil, cambio de contraseña, aplicaciones a las que puede entrar, sesiones abiertas | Cualquier usuario |
-| **C. Pantalla de login para otras aplicaciones** | Cada aplicación protegida necesita su propio login contra este servicio | Usuarios finales de otras aplicaciones |
+| **Consola de administración** (web) | **En alcance** | Gestión de usuarios, aplicaciones, clientes, roles, permisos, accesos y auditoría, más la cuenta del propio administrador (cambiar su contraseña y ver sus sesiones) |
+| Portal del usuario (perfil, aplicaciones y sesiones de usuarios finales) | Fuera de alcance | Los usuarios finales no usan este frontend |
+| Pantalla de login para otras aplicaciones | Fuera de alcance | Cada aplicación implementa su propio login contra la API (sección 5) |
+| Aplicación móvil | Fuera de alcance | La sección 5.4 se conserva solo como referencia |
 
-A y B son el alcance natural de este frontend. C se resuelve con la guía de integración de la sección 5 (cualquier aplicación puede implementar su login siguiendo ese flujo); si se quiere una pantalla de login compartida, hay que decidirlo (ver sección 2).
+#### Quién puede entrar a la consola
+
+La consola no tiene un control de acceso propio: **es una aplicación más del servicio (`auth-admin`)** y se controla con los accesos de esa aplicación.
+
+| Situación del usuario | Qué ocurre al iniciar sesión |
+|---|---|
+| Sin acceso efectivo a `auth-admin` (el caso de todos los usuarios finales) | `403 ACCESS_NOT_GRANTED`: «No tienes acceso a esta aplicación» |
+| Con acceso a `auth-admin`, pero sin roles de administración | Inicia sesión, pero la interfaz muestra «Sin permisos» (AUTZ-04) |
+| Con acceso y roles de administración | Ve las pantallas que sus permisos permiten (sección 6) |
+
+Para que un usuario **no** pueda usar la consola basta con **no darle acceso a `auth-admin`**. Un administrador nuevo se da de alta creando el usuario y concediéndole acceso a `auth-admin` con uno de sus roles (RF-43).
 
 ### Qué el backend **no** ofrece (no se puede construir hoy)
 
@@ -62,18 +75,29 @@ Ver la lista completa de limitaciones en la [sección 12](#12-limitaciones-del-b
 
 ## 2. Decisiones pendientes
 
-Hay que resolverlas antes de empezar. Las recomendaciones son propuestas, no decisiones tomadas.
+**Decididas:** D1, D2 (se resuelve fuera de este documento), D3, D5, D6 y D8. **Pendientes: D4 y D7.** Las recomendaciones son propuestas, no decisiones tomadas.
 
 | # | Decisión | Opciones | Recomendación | Por qué importa |
 |---|---|---|---|---|
-| D1 | **Alcance** | Solo A · A + B · A + B + móvil | **A + B en web**, móvil después | Marca el número de pantallas y de clientes a registrar |
-| D2 | **Stack web** | React, Angular, Vue… | **React + TypeScript (estricto) + Vite**, con TanStack Query y React Router | El equipo del backend es Java, pero eso no obliga a Angular. Lo importante es TypeScript estricto y cliente generado desde el OpenAPI |
-| D3 | **Stack móvil** | Nativo, React Native, Flutter | Sin recomendación hasta fijar D1 | El móvil usa un flujo de refresh token distinto (sección 5.4) |
+| D1 | **Alcance** | Solo consola · consola + portal · + móvil | ✔ **Decidido: solo la consola de administración web** | Los usuarios finales no acceden a este frontend |
+| D2 | **Framework** | — | ✔ **Fuera de este documento:** se decide en otro proyecto (criterios debajo) | Los requisitos de este documento no dependen del framework |
+| D3 | **Stack móvil** | — | **No aplica** (D1) | — |
 | D4 | **Topología de despliegue** | Mismo origen (proxy con `/api`) · Mismo sitio (`app.dominio.com` + `auth.dominio.com`) | **Mismo sitio como mínimo; mismo origen es lo más simple** | La cookie del refresh token es `SameSite=Strict`: si el frontend y la API están en **sitios distintos** (dominios registrables diferentes), el navegador **no enviará la cookie** y el login no se podrá renovar |
-| D5 | **Aplicación del portal de usuarios** | Reutilizar `auth-admin` · **Crear una aplicación `portal`** | **Crear `portal`** con su propio cliente web | Para hacer login, un usuario necesita acceso efectivo a la aplicación del cliente. Si los usuarios corrientes entran por `auth-admin`, hay que darles acceso a la aplicación de administración (sin roles) |
-| D6 | **¿Login compartido para otras aplicaciones (C)?** | Cada aplicación implementa el suyo · Pantalla de login alojada por este frontend | Cada aplicación el suyo, por ahora | Sin SSO, un login alojado no evita que cada aplicación gestione su sesión |
+| D5 | **Aplicación `portal`** | — | **No aplica** (D1): la consola usa solo `auth-admin-web` | — |
+| D6 | **Login compartido para otras aplicaciones** | — | **No aplica** (D1) | — |
 | D7 | **Idiomas** | Solo español · español + inglés | Español, con textos externalizados | Los mensajes del backend están en inglés (sección 8) |
 | D8 | **Huecos del contrato OpenAPI** | — | **Resuelto** (P0 y P1, sección 3.3) | — |
+
+### Criterios que debe cumplir el framework
+
+El framework se elige en otro proyecto. Lo que el backend exige al frontend no depende de él; el que se elija debe permitir:
+
+- Un **cliente HTTP con interceptores**, para adjuntar el token, reintentar tras un `401` y serializar los refresh (AUTH-05, AUTH-06).
+- **Guardas de ruta** según los permisos (AUTZ-02).
+- Mantener el access token **solo en memoria** y restaurar la sesión al cargar (AUTH-02, AUTH-04).
+- Un **cliente tipado generado** desde el contrato OpenAPI 3.1 (OA-01). Hay generadores para la mayoría de frameworks y lenguajes, pero **solo se ha probado `openapi-typescript`** (sección 3.4): si el framework elegido usa otro, conviene probar su generador con `openapi.json` antes de decidir. TypeScript es lo recomendado.
+- **Formularios con errores por campo** (ERR-03), textos externalizados (I18N-01) y accesibilidad AA (ACC).
+- **Pruebas de extremo a extremo** con un navegador real (QA-04) y una compilación a **recursos estáticos** con configuración en tiempo de ejecución (DEL-01, sección 4.2).
 
 ---
 
@@ -191,8 +215,8 @@ El `client_id` determina **a qué aplicación se hace login** y **cómo se entre
 | Cliente | Aplicación | Plataforma | Uso |
 |---|---|---|---|
 | `auth-admin-web` | `auth-admin` | `WEB` | **Consola de administración.** Ya existe en la base de datos, **pero sin orígenes permitidos** (ver 4.4) |
-| *(a crear)* | `portal` (decisión D5) | `WEB` | Portal de usuarios |
-| *(a crear)* | `portal` | `MOBILE` | App móvil, si se construye |
+
+La consola usa **un único cliente**, `auth-admin-web`. Cada entorno (desarrollo, pruebas, producción) tiene su propia base de datos y, por tanto, su propio `auth-admin-web`, con los orígenes de ese entorno.
 
 ### 4.4 CORS: el origen del frontend debe registrarse
 
@@ -313,9 +337,9 @@ Claims del JWT (RS256). Las demás aplicaciones lo validan con la clave pública
 
 La respuesta del login también trae `expiresIn` (segundos) y `expiresAt` (fecha ISO): usarlos para planificar la renovación en lugar de decodificar el token.
 
-### 5.4 Cliente móvil (si está en el alcance)
+### 5.4 Cliente móvil (fuera del alcance actual; solo referencia)
 
-Difiere de la web en cómo se entrega el refresh token. La plataforma la decide **el cliente registrado**, no la petición: un cliente `MOBILE` nunca recibe cookie.
+Esta consola es solo web. Se conserva como referencia de cómo funciona un cliente móvil de cualquier aplicación, que difiere de la web en cómo se entrega el refresh token. La plataforma la decide **el cliente registrado**, no la petición: un cliente `MOBILE` nunca recibe cookie.
 
 | Aspecto | `WEB` | `MOBILE` |
 |---|---|---|
@@ -395,6 +419,8 @@ Prefijo común: `/api/v1`. Los identificadores son UUID y las fechas, ISO-8601 e
 `TokenResponse`: `accessToken`, `tokenType` (`Bearer`), `expiresIn`, `expiresAt`, `refreshToken` (solo móvil), `refreshTokenExpiresAt`, `application`, `sessionId`.
 
 ### 7.2 Usuario autenticado (token de cualquier aplicación)
+
+La consola usa estos endpoints solo para la **cuenta del propio administrador** (`GET /users/me`, `PUT /users/me/password` y las sesiones). `GET /users/me/applications` (lanzador de aplicaciones para usuarios finales) queda **fuera de alcance**.
 
 | Operación | Respuesta real | Notas |
 |---|---|---|
@@ -550,16 +576,16 @@ Los criterios son comprobables. Las pantallas de A requieren los permisos de la 
 | RF-04 | **Sin permisos / no encontrada** | Pantallas diferenciadas (403 y 404) |
 | RF-05 | **Estados de lista** | Cada lista tiene estado de carga, vacío y error con reintento |
 
-### 9.2 Portal del usuario (B)
+### 9.2 Cuenta del administrador
+
+Los administradores usan `/users/me/*` para gestionar su propia cuenta. En particular, **el primer administrador debe cambiar la contraseña con la que se creó** (ver [DEPLOYMENT.md](DEPLOYMENT.md)).
 
 | ID | Pantalla | Requisitos |
 |---|---|---|
-| RF-10 | **Mi perfil** | Muestra correo, nombre, estado y fecha de alta. Solo lectura |
-| RF-11 | **Cambiar contraseña** | Contraseña actual, nueva y confirmación. Validación local de la política (sección 10). Aviso: «Se cerrarán tus demás sesiones». Errores `INVALID_CURRENT_PASSWORD` y `PASSWORD_POLICY_VIOLATION` en su campo |
-| RF-12 | **Mis aplicaciones** | Tarjetas con nombre, código y roles. Solo accesos efectivos. Vacío: «Aún no tienes acceso a ninguna aplicación» |
-| RF-13 | **Mis sesiones** | Lista de dispositivos: aplicación, plataforma, dispositivo, IP, navegador, creación y último uso. La actual aparece marcada y sin botón de cerrar (para eso está «Cerrar sesión»). Botón por sesión y «Cerrar todas» con confirmación |
+| RF-10 | **Mi cuenta** | Muestra correo, nombre, estado y fecha de alta (solo lectura). Incluye el cambio de contraseña: contraseña actual, nueva y confirmación, con la política de la sección 10, el aviso «Se cerrarán tus demás sesiones» y los errores `INVALID_CURRENT_PASSWORD` y `PASSWORD_POLICY_VIOLATION` en su campo |
+| RF-11 | **Mis sesiones** | Lista de dispositivos: aplicación, plataforma, dispositivo, IP, navegador, creación y último uso. La actual aparece marcada y sin botón de cerrar (para eso está «Cerrar sesión»). Botón por sesión y «Cerrar todas» con confirmación |
 
-### 9.3 Consola de administración (A)
+### 9.3 Gestión de la plataforma
 
 **Usuarios** (`users:*`)
 
@@ -590,6 +616,7 @@ Los criterios son comprobables. Las pantallas de A requieren los permisos de la 
 | RF-40 | **Accesos de una aplicación** | Paginada, con filtro por estado. Muestra usuario, estado, roles, vigencia y la insignia **«Efectivo» / «No efectivo»** (campo `effective`) |
 | RF-41 | **Conceder o editar acceso** | Estado, roles (solo los de esa aplicación), `validFrom` y `validUntil` (opcional, posterior al inicio). Distingue «concedido» (`201`) de «actualizado» (`200`). Aviso: suspender o revocar **cierra las sesiones del usuario en esa aplicación** |
 | RF-42 | **Revocar acceso** | Confirmación. El acceso pasa a `REVOKED` y se puede volver a conceder |
+| RF-43 | **Administradores de la plataforma** | Vista de los accesos a la aplicación `auth-admin`, que es la que decide quién entra a la consola: usuario, roles y «Efectivo»/«No efectivo». Atajo para dar de alta un administrador: crear el usuario y concederle acceso a `auth-admin` con un rol (`SUPER_ADMIN`, `APP_MANAGER`, `ACCESS_MANAGER` o `AUDITOR`). **El backend no impide que un administrador revoque o suspenda su propio acceso, ni el del último `SUPER_ADMIN`**: la interfaz debe pedir una confirmación reforzada (por ejemplo, escribir el correo) y no ofrecer esa acción sobre el propio usuario (ver L19) |
 
 **Auditoría** (`audit:read`)
 
@@ -645,6 +672,7 @@ El **servidor es la fuente de verdad**: el frontend las replica solo para dar me
 | SEC-07 | Comprobación de integridad de los recursos de terceros si los hay (SRI), preferiblemente ninguno |
 | SEC-08 | El `clientSecret` de un cliente `SERVICE` no se guarda en ningún almacén (estado global, caché de consultas, historial, registros) |
 | SEC-09 | Revisión de seguridad específica del módulo de autenticación antes de abrir al público |
+| SEC-10 | *(Recomendado)* Como solo la usan administradores, publicar la consola en una **red restringida** (VPN o lista de direcciones permitidas) y valorar restringir también `/api/v1/admin/**` en el proxy inverso. Es una medida de despliegue, no del backend: el login de la API sigue siendo público |
 
 ### 11.2 Accesibilidad
 
@@ -671,15 +699,15 @@ El **servidor es la fuente de verdad**: el frontend las replica solo para dar me
 | PERF-01 | Carga por rutas (code splitting): la pantalla de login no descarga la consola de administración |
 | PERF-02 | Las listas usan **paginación del servidor**; nunca se cargan todos los datos para filtrar en el navegador |
 | PERF-03 | Caché de consultas con invalidación tras las modificaciones (por ejemplo, tras crear un usuario se recarga la lista) |
-| PERF-04 | *(Propuesta)* Primera carga del login rápida en una conexión móvil estándar. Fijar un presupuesto concreto de tamaño al iniciar el proyecto |
-| COMP-01 | Navegadores actuales de escritorio y móvil (últimas dos versiones principales). Si se usa la Web Locks API (AUTH-06), prever una alternativa para los que no la tengan |
-| COMP-02 | **Diseño adaptable.** La consola, usable desde tableta; el portal, pensado primero para móvil |
+| PERF-04 | *(Propuesta)* Primera carga del login rápida en una conexión estándar. Fijar un presupuesto concreto de tamaño al iniciar el proyecto |
+| COMP-01 | Navegadores actuales de escritorio (últimas dos versiones principales). Si se usa la Web Locks API (AUTH-06), prever una alternativa para los que no la tengan |
+| COMP-02 | **Escritorio como objetivo principal**, usable en tableta. No se requiere soporte para móvil |
 
 ### 11.5 Calidad y entrega
 
 | ID | Requisito |
 |---|---|
-| QA-01 | TypeScript en modo estricto, linter y formateo automáticos |
+| QA-01 | Si se usa TypeScript (recomendado para aprovechar el contrato tipado), en modo estricto; linter y formateo automáticos en cualquier caso |
 | QA-02 | **Pruebas unitarias del cliente de autenticación**: un solo refresh a la vez, reintento tras `401`, restauración de sesión, fallos de refresh, sincronización entre pestañas. Es el código con más riesgo |
 | QA-03 | **Pruebas de componentes** de los formularios (validaciones y mensajes de error por `code`) |
 | QA-04 | **Pruebas de extremo a extremo** con un navegador real contra el backend real (puede levantarse con `compose.prod.yaml`; ver `scripts/smoke-test.sh` como modelo): login, refresh, logout, un flujo de cada pantalla de administración, y el caso de reutilización del refresh token |
@@ -716,6 +744,7 @@ Resumen de lo que el backend **no hace o hace de forma distinta a lo esperable**
 | L16 | **Los mensajes (`title`, `detail`) están en inglés** | Traducir por `code` |
 | L17 | **No hay notificaciones en tiempo real** | Sin actualización automática: botón de recarga y refresco al volver a la pestaña |
 | L18 | El **refresh token web exige `Origin` registrado** y la cookie es `SameSite=Strict` | Mismo sitio obligatorio (D4) |
+| L19 | **El backend no impide revocar el propio acceso ni el del último `SUPER_ADMIN`**, y arrancar con las variables del administrador inicial **no lo restaura** si el acceso ya existe, aunque esté revocado (*por lectura del código; no probado*). Se recupera arrancando con **otro** correo en `AUTH_BOOTSTRAP_ADMIN_EMAIL` | Confirmación reforzada en la interfaz (RF-43) |
 
 ---
 
@@ -723,18 +752,17 @@ Resumen de lo que el backend **no hace o hace de forma distinta a lo esperable**
 
 | Fase | Contenido | Criterio de aceptación |
 |---|---|---|
-| **F0. Decisiones y contrato** | Resolver D1 a D8. ~~Backend: corregir los huecos P0 del OpenAPI~~ (hecho, 3.3). Registrar los clientes y orígenes de desarrollo | Contrato regenerado con estados, errores, campos obligatorios y rutas públicas correctos |
+| **F0. Decisiones y contrato** | Resolver D4 y D7 (el resto ya está decidido). ~~Backend: corregir los huecos P0 del OpenAPI~~ (hecho, 3.3). Registrar los clientes y orígenes de desarrollo | Contrato regenerado con estados, errores, campos obligatorios y rutas públicas correctos |
 | **F1. Base** | Proyecto, TypeScript estricto, cliente generado (OA-01 a OA-03), configuración en tiempo de ejecución, integración continua, sistema de diseño base e i18n | CI en verde, con la comprobación de tipos generados |
-| **F2. Autenticación** | Login, restauración de sesión, refresh proactivo y reactivo, un solo refresh a la vez, logout, sincronización entre pestañas, guardas de rutas, manejo de errores (sección 8) | Pruebas unitarias y e2e de QA-02 y QA-04 en verde, incluida la reutilización de un refresh token |
-| **F3. Portal del usuario** | RF-10 a RF-13 | Un usuario inicia sesión, cambia su contraseña y cierra una sesión ajena |
-| **F4. Administración I** | Usuarios (RF-20 a RF-24), aplicaciones y clientes (RF-30 a RF-34) | Un administrador crea una aplicación y un cliente web y el origen se usa desde el propio frontend |
-| **F5. Administración II** | Permisos y roles (RF-35, RF-36), accesos (RF-40 a RF-42), auditoría (RF-50, RF-51) | Un administrador da acceso a un usuario, que ve la aplicación en el portal |
-| **F6. Endurecimiento y entrega** | Accesibilidad (ACC), CSP y cabeceras (SEC), revisión de seguridad, rendimiento, documentación y despliegue | Lista de comprobación de la definición de terminado |
+| **F2. Autenticación** | Login, restauración de sesión, refresh proactivo y reactivo, un solo refresh a la vez, logout, sincronización entre pestañas, guardas de rutas, manejo de errores (sección 8) y la cuenta del administrador (RF-10, RF-11) | Pruebas unitarias y e2e de QA-02 y QA-04 en verde, incluida la reutilización de un refresh token |
+| **F3. Administración I** | Usuarios (RF-20 a RF-24), aplicaciones y clientes (RF-30 a RF-34) | Un administrador crea una aplicación y un cliente web y el origen se usa desde el propio frontend |
+| **F4. Administración II** | Permisos y roles (RF-35, RF-36), accesos (RF-40 a RF-43), auditoría (RF-50, RF-51) | Un administrador da acceso a un usuario y el acceso aparece como «Efectivo»; los eventos quedan en la auditoría |
+| **F5. Endurecimiento y entrega** | Accesibilidad (ACC), CSP y cabeceras (SEC), revisión de seguridad, rendimiento, documentación y despliegue | Lista de comprobación de la definición de terminado |
 
 **Definición de terminado de cada fase:**
 
 - Los requisitos de la fase se cumplen y están probados.
-- No hay tipos manuales que dupliquen el contrato (salvo la capa temporal de OA-04).
+- No hay tipos manuales que dupliquen el contrato (OA-04).
 - Accesibilidad y seguridad revisadas en lo que se añade.
 - Textos externalizados y traducidos.
 - Documentación actualizada (incluidas las decisiones nuevas).
@@ -765,8 +793,7 @@ Resumen de lo que el backend **no hace o hace de forma distinta a lo esperable**
 - [ ] Registrar el origen del frontend en `auth-admin-web` y esperar 30 s (sección 4.4).
 - [ ] Descargar `openapi.json` y versionarlo (OA-02).
 - [ ] Comprobar en el navegador que la cookie del refresh token llega (`HttpOnly`, `SameSite=Strict`, `Path=/api/v1/auth`).
-- [ ] Decidir D1 a D8 y registrar las respuestas en este documento.
-- [ ] Crear la aplicación `portal` y su cliente web, si D5 lo confirma.
+- [ ] Decidir D4 y D7 y registrar las respuestas en este documento.
 
 ### 14.4 Identificadores de operación (`operationId`)
 
