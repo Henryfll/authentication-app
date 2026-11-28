@@ -66,6 +66,7 @@ class AdminClientController {
     ErrorCode.INVALID_CLIENT_CONFIGURATION
   })
   @Operation(
+      operationId = "createClient",
       summary = "Registrar un cliente (web, móvil o servicio)",
       description =
           "Para clientes SERVICE la respuesta incluye `clientSecret`. Es la única vez que se"
@@ -89,7 +90,7 @@ class AdminClientController {
 
   @GetMapping
   @ErrorResponses({ErrorCode.APPLICATION_NOT_FOUND})
-  @Operation(summary = "Listar los clientes de una aplicación")
+  @Operation(operationId = "listClients", summary = "Listar los clientes de una aplicación")
   List<ClientResponse> list(@PathVariable UUID appId) {
     return clients.list(new ApplicationId(appId)).stream()
         .map(c -> ClientResponse.from(c, null))
@@ -104,6 +105,7 @@ class AdminClientController {
     ErrorCode.CONFLICT
   })
   @Operation(
+      operationId = "updateClient",
       summary = "Actualizar un cliente",
       description = "Solo se modifican los campos enviados. `client_id` y plataforma son fijos.")
   ClientResponse update(
@@ -130,6 +132,7 @@ class AdminClientController {
     ErrorCode.INVALID_CLIENT_CONFIGURATION
   })
   @Operation(
+      operationId = "rotateClientSecret",
       summary = "Regenerar el secreto de un cliente SERVICE",
       description = "El secreto anterior deja de ser válido inmediatamente.")
   ClientResponse rotateSecret(@PathVariable UUID appId, @PathVariable UUID clientId) {

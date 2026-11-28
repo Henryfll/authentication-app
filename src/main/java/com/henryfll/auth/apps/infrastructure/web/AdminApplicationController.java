@@ -55,7 +55,7 @@ class AdminApplicationController {
               description = "URL del recurso creado",
               schema = @Schema(type = "string")))
   @ErrorResponses({ErrorCode.APPLICATION_CODE_ALREADY_EXISTS})
-  @Operation(summary = "Registrar una aplicación")
+  @Operation(operationId = "createApplication", summary = "Registrar una aplicación")
   ResponseEntity<ApplicationResponse> create(@Valid @RequestBody CreateApplicationRequest request) {
     Application app =
         applications.create(
@@ -65,7 +65,7 @@ class AdminApplicationController {
   }
 
   @GetMapping
-  @Operation(summary = "Listar aplicaciones (paginado)")
+  @Operation(operationId = "listApplications", summary = "Listar aplicaciones (paginado)")
   PageResponse<ApplicationResponse> list(
       @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer size) {
     return PageResponse.from(
@@ -74,7 +74,7 @@ class AdminApplicationController {
 
   @GetMapping("/{appId}")
   @ErrorResponses({ErrorCode.APPLICATION_NOT_FOUND})
-  @Operation(summary = "Obtener una aplicación")
+  @Operation(operationId = "getApplication", summary = "Obtener una aplicación")
   ApplicationResponse get(@PathVariable UUID appId) {
     return ApplicationResponse.from(applications.get(new ApplicationId(appId)));
   }
@@ -87,6 +87,7 @@ class AdminApplicationController {
     ErrorCode.CONFLICT
   })
   @Operation(
+      operationId = "updateApplication",
       summary = "Actualizar una aplicación",
       description = "Solo se modifican los campos enviados. El código no se puede cambiar.")
   ApplicationResponse update(

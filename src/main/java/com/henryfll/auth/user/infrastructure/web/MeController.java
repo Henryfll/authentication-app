@@ -44,7 +44,7 @@ class MeController {
   }
 
   @GetMapping
-  @Operation(summary = "Perfil del usuario autenticado")
+  @Operation(operationId = "getMe", summary = "Perfil del usuario autenticado")
   MeResponse me(@AuthenticationPrincipal Jwt jwt) {
     User user = users.get(new UserId(UUID.fromString(jwt.getSubject())));
     return new MeResponse(
@@ -63,6 +63,7 @@ class MeController {
       description = "Contraseña cambiada. Se cierran las demás sesiones del usuario")
   @ErrorResponses({ErrorCode.INVALID_CURRENT_PASSWORD, ErrorCode.PASSWORD_POLICY_VIOLATION})
   @Operation(
+      operationId = "changeMyPassword",
       summary = "Cambiar la contraseña",
       description =
           "Pide la contraseña actual. Cierra todas las demás sesiones del usuario; la sesión"

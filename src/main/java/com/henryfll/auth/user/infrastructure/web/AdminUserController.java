@@ -70,7 +70,7 @@ class AdminUserController {
               description = "URL del recurso creado",
               schema = @Schema(type = "string")))
   @ErrorResponses({ErrorCode.USER_EMAIL_ALREADY_EXISTS, ErrorCode.PASSWORD_POLICY_VIOLATION})
-  @Operation(summary = "Crear un usuario")
+  @Operation(operationId = "createUser", summary = "Crear un usuario")
   ResponseEntity<UserResponse> create(@Valid @RequestBody CreateUserRequest request) {
     User user =
         createUser.create(
@@ -81,7 +81,7 @@ class AdminUserController {
   }
 
   @GetMapping
-  @Operation(summary = "Listar usuarios (paginado)")
+  @Operation(operationId = "listUsers", summary = "Listar usuarios (paginado)")
   PageResponse<UserResponse> list(
       @RequestParam(required = false) String email,
       @RequestParam(required = false) UserStatus status,
@@ -94,14 +94,14 @@ class AdminUserController {
 
   @GetMapping("/{userId}")
   @ErrorResponses({ErrorCode.USER_NOT_FOUND})
-  @Operation(summary = "Obtener un usuario")
+  @Operation(operationId = "getUser", summary = "Obtener un usuario")
   UserResponse get(@PathVariable UUID userId) {
     return UserResponse.from(findUsers.get(new UserId(userId)));
   }
 
   @PatchMapping("/{userId}/status")
   @ErrorResponses({ErrorCode.USER_NOT_FOUND, ErrorCode.CONFLICT})
-  @Operation(summary = "Cambiar el estado de un usuario")
+  @Operation(operationId = "changeUserStatus", summary = "Cambiar el estado de un usuario")
   UserResponse changeStatus(
       @PathVariable UUID userId, @Valid @RequestBody ChangeUserStatusRequest request) {
     return UserResponse.from(changeUserStatus.changeStatus(new UserId(userId), request.status()));
@@ -113,6 +113,7 @@ class AdminUserController {
       description = "Contraseña restablecida. Se cierran todas las sesiones del usuario")
   @ErrorResponses({ErrorCode.USER_NOT_FOUND, ErrorCode.PASSWORD_POLICY_VIOLATION})
   @Operation(
+      operationId = "resetUserPassword",
       summary = "Restablecer la contraseña de un usuario",
       description =
           "Sustituye la recuperación por email mientras no exista. Levanta el bloqueo temporal"

@@ -73,7 +73,7 @@ Hay que resolverlas antes de empezar. Las recomendaciones son propuestas, no dec
 | D5 | **Aplicación del portal de usuarios** | Reutilizar `auth-admin` · **Crear una aplicación `portal`** | **Crear `portal`** con su propio cliente web | Para hacer login, un usuario necesita acceso efectivo a la aplicación del cliente. Si los usuarios corrientes entran por `auth-admin`, hay que darles acceso a la aplicación de administración (sin roles) |
 | D6 | **¿Login compartido para otras aplicaciones (C)?** | Cada aplicación implementa el suyo · Pantalla de login alojada por este frontend | Cada aplicación el suyo, por ahora | Sin SSO, un login alojado no evita que cada aplicación gestione su sesión |
 | D7 | **Idiomas** | Solo español · español + inglés | Español, con textos externalizados | Los mensajes del backend están en inglés (sección 8) |
-| D8 | **Huecos del contrato OpenAPI** | — | **Resuelto para los P0**; decidir cuándo hacer los P1 (sección 3.3) | Los `operationId` inestables (P1) conviene arreglarlos antes de generar código |
+| D8 | **Huecos del contrato OpenAPI** | — | **Resuelto** (P0 y P1, sección 3.3) | — |
 
 ---
 
@@ -87,19 +87,21 @@ Se arrancó el backend (`developer`, perfil `local`) y se analizó la especifica
 |---|---|
 | `GET /v3/api-docs` | **200**, `application/json`, 28 KB, **sin autenticación** |
 | `GET /swagger-ui.html` | **200** (redirige a la interfaz de Swagger) |
-| `GET /v3/api-docs.yaml` | **401** (ver hueco 7) |
+| `GET /v3/api-docs.yaml` | **200** (`application/vnd.oai.openapi`), público como el JSON |
 | Versión del formato | **OpenAPI 3.1.0** |
 | Contenido | **27 rutas** (**35 operaciones**), **33 esquemas**: 14 de petición, 17 de respuesta o auxiliares y los 2 de error (`Problem`, `ProblemFieldError`) |
 | Seguridad | Esquema `bearer` (HTTP, JWT) |
 | Etiquetas | Todas las operaciones tienen etiqueta (`Auth`, `Me`, `Admin · …`) |
-| Identificadores de operación | Únicos (sin duplicados) |
+| Identificadores de operación | **Explícitos, únicos y descriptivos** (`createUser`, `listClients`…), fijados por `OpenApiContractTest`. Lista completa en 14.4 |
+| Tipo de contenido | Las respuestas con cuerpo declaran `application/json` |
+| Versión | `info.version` es la versión de la compilación (por ejemplo `0.1.0-SNAPSHOT`), la misma que muestra `/actuator/info` |
 | Parámetros | Rutas, consultas, cabecera `X-Client-Id` y cookie `refresh_token` documentados |
 | Enumeraciones | Incluidas (`status`, `platform`, tipos de auditoría…) |
 | Formatos | `uuid`, `date-time`, `email`, límites de longitud y de colección |
 
 > **En producción el contrato está desactivado por defecto** (`OPENAPI_ENABLED=false`). El frontend debe generarse contra un backend local o de desarrollo, o contra una copia versionada del contrato.
 
-**Conclusión: el OpenAPI existe y es utilizable.** La primera verificación encontró cuatro huecos graves (P0) que degradaban el cliente generado; **ya están corregidos** y los fija `OpenApiContractTest`. Quedan cuatro de prioridad menor (P1), sección 3.3.
+**Conclusión: el OpenAPI existe y es utilizable.** La primera verificación encontró cuatro huecos graves (P0) que degradaban el cliente generado; **ya están corregidos** y los fija `OpenApiContractTest`. Los cuatro de prioridad menor (P1) **también están corregidos** (sección 3.3).
 
 ### 3.2 Qué está bien
 
@@ -112,6 +114,7 @@ Se arrancó el backend (`developer`, perfil `local`) y se analizó la especifica
 - **Los campos de respuesta son obligatorios por defecto.** Los que pueden valer `null` se declaran `T | null`, y los que el servidor omite cuando están vacíos (`TokenResponse.refreshToken`, `ClientResponse.clientSecret`) son opcionales.
 - **Login, refresh y JWKS están marcados como públicos** (`security: []`).
 - Las cabeceras `Set-Cookie` del login, el refresh y el logout están descritas.
+- **Los `operationId` son descriptivos y estables** (`listUsers`, `createClient`, `revokeMySession`…). Son parte del contrato: cambiar uno es un cambio incompatible para el frontend.
 
 ### 3.3 Huecos detectados
 
@@ -121,14 +124,14 @@ Se arrancó el backend (`developer`, perfil `local`) y se analizó la especifica
 | 2 | **Ningún error está documentado**: no hay respuestas `4xx`/`5xx` ni esquema del cuerpo de error (Problem Details) | El cliente generado no tipa los errores. Hay que escribir el tipo a mano (sección 8) | **P0** ✔ corregido |
 | 3 | **Todos los campos de las respuestas son opcionales** (ninguno de los 17 esquemas de respuesta y auxiliares declara `required`) | En TypeScript, `accessToken?: string`, `id?: string`… Obliga a comprobar `undefined` en todas partes | **P0** ✔ corregido |
 | 4 | **Login, refresh y JWKS aparecen como protegidos** (heredan la seguridad `bearer` global) aunque son públicos | Un cliente generado puede exigir un token para hacer login | **P0** ✔ corregido |
-| 5 | **Los `operationId` son autogenerados** y poco claros: `list`, `list_1`, `list_2`, `list_3`, `list_4`, `get`, `get_1`, `get_2`, `create`, `create_1`, `create_2`, `update`, `update_1`, `revoke`, `revoke_1` | Los nombres de las funciones generadas serían ilegibles e **inestables**: añadir un controlador renumera los demás y rompe el código del frontend | P1 |
-| 6 | **Los tipos de contenido de respuesta son `*/*`** en lugar de `application/json` | Algunos generadores no reconocen el cuerpo como JSON | P1 |
-| 7 | **`/v3/api-docs.yaml` devuelve `401`** (la ruta no está en la lista pública) | Las herramientas que piden el YAML no pueden descargarlo sin token. El JSON sí funciona | P1 |
-| 8 | **`info.version` es `dev`** y la URL del servidor es `http://localhost:8080` («Generated server url») | El contrato no indica qué versión de la API es ni dónde está | P1 |
+| 5 | **Los `operationId` son autogenerados** y poco claros: `list`, `list_1`, `list_2`, `list_3`, `list_4`, `get`, `get_1`, `get_2`, `create`, `create_1`, `create_2`, `update`, `update_1`, `revoke`, `revoke_1` | Los nombres de las funciones generadas serían ilegibles e **inestables**: añadir un controlador renumera los demás y rompe el código del frontend | P1 ✔ corregido |
+| 6 | **Los tipos de contenido de respuesta son `*/*`** en lugar de `application/json` | Algunos generadores no reconocen el cuerpo como JSON | P1 ✔ corregido |
+| 7 | **`/v3/api-docs.yaml` devolvía `401`** (la ruta no estaba en la lista pública) | Las herramientas que piden el YAML no pueden descargarlo sin token. El JSON sí funciona | P1 ✔ corregido |
+| 8 | **`info.version` es `dev`** y la URL del servidor es `http://localhost:8080` («Generated server url») | El contrato no indica qué versión de la API es ni dónde está | P1 ✔ corregido |
 | 9 | **La entrega del refresh token por cookie no se puede expresar en el esquema**: `TokenResponse.refreshToken` es **opcional** en el esquema: **para clientes web nunca viene en el cuerpo** (va en `Set-Cookie`, que ahora sí está descrita en las respuestas) | El cliente web debe ignorar ese campo. Se explica en la sección 5 | Informativo |
 | 10 | **`Retry-After` no es legible desde el navegador** (CORS no lo expone); `Set-Cookie` tampoco lo es nunca | Para el tiempo de espera de un `429`, usar `retryAfterSeconds` del cuerpo (sección 8) | Informativo |
 
-**Estado.** Los huecos 1 a 4 (P0) están corregidos en el backend con anotaciones de OpenAPI en la capa web, sin cambiar la lógica de negocio. `OpenApiContractTest` los fija: compara el contrato con lo que la API devuelve de verdad (estados, errores reales frente al esquema `Problem`, campos obligatorios y anulables). Quedan los P1 (5 a 8). Ninguno impide generar el cliente, pero conviene resolver el **5** (`operationId` inestables) **antes** de que el frontend dependa de los nombres de las funciones generadas.
+**Estado.** Los huecos 1 a 4 (P0) están corregidos en el backend con anotaciones de OpenAPI en la capa web, sin cambiar la lógica de negocio. `OpenApiContractTest` los fija: compara el contrato con lo que la API devuelve de verdad (estados, errores reales frente al esquema `Problem`, campos obligatorios y anulables). Los P1 (5 a 8) también están corregidos: `operationId` explícitos (35 de 35, con una tabla fija en el test), respuestas declaradas como `application/json`, `.yaml` público, versión de la compilación en `info.version` y una descripción útil para el servidor. **El contrato ya no tiene huecos conocidos** más allá de los informativos (9 y 10).
 
 ### 3.4 Cómo obtener y usar el contrato
 
@@ -140,7 +143,9 @@ Se arrancó el backend (`developer`, perfil `local`) y se analizó la especifica
 curl -s http://localhost:8080/v3/api-docs -o openapi.json
 ```
 
-**Generación del cliente.** `openapi-typescript` 7.13.0 se ejecutó sobre el contrato corregido y genera tipos que **compilan con `tsc --strict`**: los campos obligatorios dejan de llevar `?`, los nullables son `string | null`, las creaciones tipan `201`, los errores tipan `Problem` y `Problem.code` es una unión de los 33 códigos. Las demás herramientas (`openapi-fetch`, `orval`) no se han probado en este repositorio.
+**Generación del cliente.** `openapi-typescript` 7.13.0 se ejecutó sobre el contrato corregido y genera tipos que **compilan con `tsc --strict`**: los campos obligatorios dejan de llevar `?`, los nullables son `string | null`, las creaciones tipan `201`, los errores tipan `Problem` y `Problem.code` es una unión de los 33 códigos. Las funciones generadas llevan los nombres de 14.4 (`createUser`, `listClients`…). Las demás herramientas (`openapi-fetch`, `orval`) no se han probado en este repositorio.
+
+> **Aviso práctico:** `openapi-typescript` 7.13 exige **TypeScript 5.x**. Con TypeScript 7 (el paquete `typescript` más reciente) falla al arrancar (`ts.factory` no existe). Fijar la versión en el `package.json` del frontend.
 
 ```bash
 # Tipos TypeScript a partir del contrato
@@ -707,7 +712,7 @@ Resumen de lo que el backend **no hace o hace de forma distinta a lo esperable**
 | L12 | **Los access tokens no se pueden revocar**: tras cerrar sesión siguen válidos hasta caducar | Aceptable para 15 min; documentarlo |
 | L13 | **Una sola clave de firma**. Cambiarla invalida los access tokens vigentes (los clientes se recuperan renovando) | Una oleada de `401 INVALID_TOKEN` se resuelve con AUTH-05 |
 | L14 | **Límites de intentos por instancia** y por IP | Varios usuarios tras la misma IP comparten el límite |
-| L15 | **Contrato OpenAPI con los huecos P1 de la sección 3.3**, y desactivado en producción | Generar el cliente contra un backend local o una copia versionada (OA-02) |
+| L15 | **El contrato OpenAPI está desactivado en producción** por defecto | Generar el cliente contra un backend local o una copia versionada (OA-02) |
 | L16 | **Los mensajes (`title`, `detail`) están en inglés** | Traducir por `code` |
 | L17 | **No hay notificaciones en tiempo real** | Sin actualización automática: botón de recarga y refresco al volver a la pestaña |
 | L18 | El **refresh token web exige `Origin` registrado** y la cookie es `SameSite=Strict` | Mismo sitio obligatorio (D4) |
@@ -718,7 +723,7 @@ Resumen de lo que el backend **no hace o hace de forma distinta a lo esperable**
 
 | Fase | Contenido | Criterio de aceptación |
 |---|---|---|
-| **F0. Decisiones y contrato** | Resolver D1 a D8. ~~Backend: corregir los huecos P0 del OpenAPI~~ (hecho, 3.3); decidir los P1. Registrar los clientes y orígenes de desarrollo | Contrato regenerado con estados, errores, campos obligatorios y rutas públicas correctos |
+| **F0. Decisiones y contrato** | Resolver D1 a D8. ~~Backend: corregir los huecos P0 del OpenAPI~~ (hecho, 3.3). Registrar los clientes y orígenes de desarrollo | Contrato regenerado con estados, errores, campos obligatorios y rutas públicas correctos |
 | **F1. Base** | Proyecto, TypeScript estricto, cliente generado (OA-01 a OA-03), configuración en tiempo de ejecución, integración continua, sistema de diseño base e i18n | CI en verde, con la comprobación de tipos generados |
 | **F2. Autenticación** | Login, restauración de sesión, refresh proactivo y reactivo, un solo refresh a la vez, logout, sincronización entre pestañas, guardas de rutas, manejo de errores (sección 8) | Pruebas unitarias y e2e de QA-02 y QA-04 en verde, incluida la reutilización de un refresh token |
 | **F3. Portal del usuario** | RF-10 a RF-13 | Un usuario inicia sesión, cambia su contraseña y cierra una sesión ajena |
@@ -762,3 +767,45 @@ Resumen de lo que el backend **no hace o hace de forma distinta a lo esperable**
 - [ ] Comprobar en el navegador que la cookie del refresh token llega (`HttpOnly`, `SameSite=Strict`, `Path=/api/v1/auth`).
 - [ ] Decidir D1 a D8 y registrar las respuestas en este documento.
 - [ ] Crear la aplicación `portal` y su cliente web, si D5 lo confirma.
+
+### 14.4 Identificadores de operación (`operationId`)
+
+Nombres de las funciones que genera el cliente. Son parte del contrato y los fija `OpenApiContractTest`.
+
+| Grupo | Operación | `operationId` |
+|---|---|---|
+| Me | `GET /api/v1/users/me` | `getMe` |
+| Me | `GET /api/v1/users/me/applications` | `listMyApplications` |
+| Me | `PUT /api/v1/users/me/password` | `changeMyPassword` |
+| Me | `GET /api/v1/users/me/sessions` | `listMySessions` |
+| Me | `DELETE /api/v1/users/me/sessions/{sessionId}` | `revokeMySession` |
+| Admin · Users | `GET /api/v1/admin/users` | `listUsers` |
+| Admin · Users | `POST /api/v1/admin/users` | `createUser` |
+| Admin · Users | `GET /api/v1/admin/users/{userId}` | `getUser` |
+| Admin · Users | `PUT /api/v1/admin/users/{userId}/password` | `resetUserPassword` |
+| Admin · Users | `PATCH /api/v1/admin/users/{userId}/status` | `changeUserStatus` |
+| Admin · Roles & permissions | `GET /api/v1/admin/applications/{appId}/permissions` | `listPermissions` |
+| Admin · Roles & permissions | `POST /api/v1/admin/applications/{appId}/permissions` | `createPermission` |
+| Admin · Roles & permissions | `GET /api/v1/admin/applications/{appId}/roles` | `listRoles` |
+| Admin · Roles & permissions | `POST /api/v1/admin/applications/{appId}/roles` | `createRole` |
+| Admin · Roles & permissions | `GET /api/v1/admin/applications/{appId}/roles/{roleId}` | `getRole` |
+| Admin · Roles & permissions | `PUT /api/v1/admin/applications/{appId}/roles/{roleId}/permissions` | `replaceRolePermissions` |
+| Admin · Access | `GET /api/v1/admin/applications/{appId}/access` | `listApplicationAccess` |
+| Admin · Access | `DELETE /api/v1/admin/applications/{appId}/access/{userId}` | `revokeAccess` |
+| Admin · Access | `GET /api/v1/admin/applications/{appId}/access/{userId}` | `getAccess` |
+| Admin · Access | `PUT /api/v1/admin/applications/{appId}/access/{userId}` | `grantAccess` |
+| Admin · Access | `GET /api/v1/admin/users/{userId}/access` | `listUserAccess` |
+| Auth | `GET /.well-known/jwks.json` | `getJwks` |
+| Auth | `POST /api/v1/auth/login` | `login` |
+| Auth | `POST /api/v1/auth/logout` | `logout` |
+| Auth | `POST /api/v1/auth/logout-all` | `logoutAll` |
+| Auth | `POST /api/v1/auth/refresh` | `refreshTokens` |
+| Admin · Applications | `GET /api/v1/admin/applications` | `listApplications` |
+| Admin · Applications | `POST /api/v1/admin/applications` | `createApplication` |
+| Admin · Applications | `GET /api/v1/admin/applications/{appId}` | `getApplication` |
+| Admin · Applications | `PATCH /api/v1/admin/applications/{appId}` | `updateApplication` |
+| Admin · Application clients | `GET /api/v1/admin/applications/{appId}/clients` | `listClients` |
+| Admin · Application clients | `POST /api/v1/admin/applications/{appId}/clients` | `createClient` |
+| Admin · Application clients | `PATCH /api/v1/admin/applications/{appId}/clients/{clientId}` | `updateClient` |
+| Admin · Application clients | `POST /api/v1/admin/applications/{appId}/clients/{clientId}/secret` | `rotateClientSecret` |
+| Admin · Audit | `GET /api/v1/admin/audit-events` | `searchAuditEvents` |

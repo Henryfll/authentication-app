@@ -33,6 +33,8 @@ spring:
       enabled: false
 
 app:
+  # Versión de la compilación (la sustituye Maven). La usan el contrato OpenAPI y /actuator/info.
+  version: "@project.version@"
   security:
     jwt:
       issuer: ${JWT_ISSUER:http://localhost:8080}
@@ -90,6 +92,8 @@ info:
     version: ${app.version:dev}
 
 springdoc:
+  # Los endpoints devuelven JSON; sin esto el contrato declara `*/*` en las respuestas.
+  default-produces-media-type: application/json
   api-docs:
     path: /v3/api-docs
   swagger-ui:

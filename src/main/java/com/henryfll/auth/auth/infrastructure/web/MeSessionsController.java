@@ -35,6 +35,7 @@ class MeSessionsController {
 
   @GetMapping
   @Operation(
+      operationId = "listMySessions",
       summary = "Sesiones activas del usuario",
       description = "`current` marca la sesión del access token usado en la petición.")
   List<SessionResponse> list(@AuthenticationPrincipal Jwt jwt) {
@@ -60,7 +61,9 @@ class MeSessionsController {
   @DeleteMapping("/{sessionId}")
   @ApiResponse(responseCode = "204", description = "Sesión cerrada")
   @ErrorResponses({ErrorCode.SESSION_NOT_FOUND})
-  @Operation(summary = "Cerrar una sesión concreta (p. ej. un dispositivo perdido)")
+  @Operation(
+      operationId = "revokeMySession",
+      summary = "Cerrar una sesión concreta (p. ej. un dispositivo perdido)")
   ResponseEntity<Void> revoke(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID sessionId) {
     sessions.revokeOwn(UUID.fromString(jwt.getSubject()), sessionId);
     return ResponseEntity.noContent().build();

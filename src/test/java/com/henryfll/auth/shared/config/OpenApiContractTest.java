@@ -49,6 +49,52 @@ class OpenApiContractTest extends IntegrationTest {
           Map.entry("PUT /api/v1/admin/users/{userId}/password", Set.of("204")),
           Map.entry("DELETE /api/v1/users/me/sessions/{sessionId}", Set.of("204")));
 
+  /**
+   * Identificadores de operación. Son parte del contrato: el cliente generado nombra sus funciones
+   * con ellos, así que cambiar uno rompe al frontend y debe ser una decisión consciente.
+   */
+  private static final Map<String, String> OPERATION_IDS =
+      Map.ofEntries(
+          Map.entry("POST /api/v1/auth/login", "login"),
+          Map.entry("POST /api/v1/auth/refresh", "refreshTokens"),
+          Map.entry("POST /api/v1/auth/logout", "logout"),
+          Map.entry("POST /api/v1/auth/logout-all", "logoutAll"),
+          Map.entry("GET /.well-known/jwks.json", "getJwks"),
+          Map.entry("GET /api/v1/users/me", "getMe"),
+          Map.entry("PUT /api/v1/users/me/password", "changeMyPassword"),
+          Map.entry("GET /api/v1/users/me/applications", "listMyApplications"),
+          Map.entry("GET /api/v1/users/me/sessions", "listMySessions"),
+          Map.entry("DELETE /api/v1/users/me/sessions/{sessionId}", "revokeMySession"),
+          Map.entry("GET /api/v1/admin/users", "listUsers"),
+          Map.entry("POST /api/v1/admin/users", "createUser"),
+          Map.entry("GET /api/v1/admin/users/{userId}", "getUser"),
+          Map.entry("PATCH /api/v1/admin/users/{userId}/status", "changeUserStatus"),
+          Map.entry("PUT /api/v1/admin/users/{userId}/password", "resetUserPassword"),
+          Map.entry("GET /api/v1/admin/users/{userId}/access", "listUserAccess"),
+          Map.entry("GET /api/v1/admin/applications", "listApplications"),
+          Map.entry("POST /api/v1/admin/applications", "createApplication"),
+          Map.entry("GET /api/v1/admin/applications/{appId}", "getApplication"),
+          Map.entry("PATCH /api/v1/admin/applications/{appId}", "updateApplication"),
+          Map.entry("GET /api/v1/admin/applications/{appId}/clients", "listClients"),
+          Map.entry("POST /api/v1/admin/applications/{appId}/clients", "createClient"),
+          Map.entry("PATCH /api/v1/admin/applications/{appId}/clients/{clientId}", "updateClient"),
+          Map.entry(
+              "POST /api/v1/admin/applications/{appId}/clients/{clientId}/secret",
+              "rotateClientSecret"),
+          Map.entry("GET /api/v1/admin/applications/{appId}/permissions", "listPermissions"),
+          Map.entry("POST /api/v1/admin/applications/{appId}/permissions", "createPermission"),
+          Map.entry("GET /api/v1/admin/applications/{appId}/roles", "listRoles"),
+          Map.entry("POST /api/v1/admin/applications/{appId}/roles", "createRole"),
+          Map.entry("GET /api/v1/admin/applications/{appId}/roles/{roleId}", "getRole"),
+          Map.entry(
+              "PUT /api/v1/admin/applications/{appId}/roles/{roleId}/permissions",
+              "replaceRolePermissions"),
+          Map.entry("PUT /api/v1/admin/applications/{appId}/access/{userId}", "grantAccess"),
+          Map.entry("GET /api/v1/admin/applications/{appId}/access/{userId}", "getAccess"),
+          Map.entry("DELETE /api/v1/admin/applications/{appId}/access/{userId}", "revokeAccess"),
+          Map.entry("GET /api/v1/admin/applications/{appId}/access", "listApplicationAccess"),
+          Map.entry("GET /api/v1/admin/audit-events", "searchAuditEvents"));
+
   /** Operaciones públicas: no exigen token. */
   private static final Set<String> PUBLIC_OPERATIONS =
       Set.of("POST /api/v1/auth/login", "POST /api/v1/auth/refresh", "GET /.well-known/jwks.json");
@@ -336,6 +382,57 @@ class OpenApiContractTest extends IntegrationTest {
     Set<String> requiredTokenFields =
         new HashSet<>(list(map(schemas().get("TokenResponse")).get("required")));
     assertThat(tokens.keySet()).containsAll(requiredTokenFields).doesNotContain("refreshToken");
+  }
+
+  // --- Identificadores, tipos de contenido y metadatos ----------------------------------------
+
+  @Test
+  void operationIdsAreExplicitUniqueAndStable() {
+    Map<String, Map<String, Object>> operations = operations();
+    List<String> ids = new ArrayList<>();
+    operations.forEach((key, op) -> {
+      String id = (String) op.get("operationId");
+      ids.add(id);
+      assertThat(id).as("operationId de %s", key).matches("[a-z][A-Za-z]+");
+      if (OPERATION_IDS.containsKey(key)) {
+        assertThat(id).as("operationId de %s", key).isEqualTo(OPERATION_IDS.get(key));
+      }
+    });
+    assertThat(ids).as("identificadores repetidos").doesNotHaveDuplicates();
+    assertThat(operations.keySet())
+        .as("operaciones sin identificador fijado en la tabla de este test")
+        .containsAll(OPERATION_IDS.keySet());
+  }
+
+  @Test
+  void responsesAreDeclaredAsJson() {
+    operations()
+        .forEach((key, op) ->
+            map(op.get("responses"))
+                .forEach((status, response) -> {
+                  Set<String> types = map(map(response).get("content")).keySet();
+                  if (status.startsWith("2") && !types.isEmpty()) {
+                    assertThat(types)
+                        .as("tipos de contenido de %s %s", key, status)
+                        .containsExactly("application/json");
+                  }
+                }));
+  }
+
+  @Test
+  void theContractCarriesTheBuildVersionAndDescribesTheServer() {
+    Map<String, Object> info = map(spec.get("info"));
+    assertThat((String) info.get("version")).matches("\\d+\\.\\d+\\.\\d+(-[A-Za-z0-9.]+)?");
+    for (Object server : (List<?>) spec.get("servers")) {
+      assertThat(map(server).get("description")).isEqualTo(OpenApiConfig.SERVER_DESCRIPTION);
+    }
+  }
+
+  @Test
+  void theYamlVariantIsPublicLikeTheJson() throws Exception {
+    MvcResult result = anonymous.perform(get("/v3/api-docs.yaml")).andReturn();
+    assertThat(result.getResponse().getStatus()).isEqualTo(200);
+    assertThat(result.getResponse().getContentAsString()).startsWith("openapi: 3.1");
   }
 
   // --- Utilidades ---------------------------------------------------------------------------
