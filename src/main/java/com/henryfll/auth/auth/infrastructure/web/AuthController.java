@@ -85,6 +85,7 @@ class AuthController {
     ErrorCode.TOO_MANY_REQUESTS
   })
   @Operation(
+      operationId = "login",
       summary = "Login con email y contraseña",
       description =
           "Abre una sesión y emite un access token (JWT RS256) para la aplicación del cliente"
@@ -129,6 +130,7 @@ class AuthController {
     ErrorCode.TOO_MANY_REQUESTS
   })
   @Operation(
+      operationId = "refreshTokens",
       summary = "Renovar los tokens",
       description =
           "Los clientes WEB envían la cookie del refresh token; los MOBILE, el body"
@@ -163,7 +165,7 @@ class AuthController {
               name = "Set-Cookie",
               description = "Borra la cookie `refresh_token` de los clientes WEB",
               schema = @Schema(type = "string")))
-  @Operation(summary = "Cerrar la sesión actual (la del access token)")
+  @Operation(operationId = "logout", summary = "Cerrar la sesión actual (la del access token)")
   ResponseEntity<Void> logout(@AuthenticationPrincipal Jwt jwt) {
     String sid = jwt.getClaimAsString("sid");
     if (sid != null) {
@@ -181,7 +183,9 @@ class AuthController {
               name = "Set-Cookie",
               description = "Borra la cookie `refresh_token` de los clientes WEB",
               schema = @Schema(type = "string")))
-  @Operation(summary = "Cerrar todas las sesiones del usuario en todos sus dispositivos")
+  @Operation(
+      operationId = "logoutAll",
+      summary = "Cerrar todas las sesiones del usuario en todos sus dispositivos")
   ResponseEntity<Void> logoutAll(@AuthenticationPrincipal Jwt jwt) {
     sessions.logoutAll(UUID.fromString(jwt.getSubject()));
     return noContentClearingCookie();

@@ -32,6 +32,7 @@ class AdminAuditController {
 
   @GetMapping
   @Operation(
+      operationId = "searchAuditEvents",
       summary = "Consultar la auditoría (paginado, del más reciente al más antiguo)",
       description =
           "`userId` filtra los eventos en los que el usuario es actor o destinatario. `from` es"

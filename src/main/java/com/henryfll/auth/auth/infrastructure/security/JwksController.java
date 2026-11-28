@@ -25,7 +25,9 @@ class JwksController {
 
   @GetMapping("/.well-known/jwks.json")
   @SecurityRequirements
-  @Operation(summary = "Claves públicas (JWKS) para validar los access tokens")
+  @Operation(
+      operationId = "getJwks",
+      summary = "Claves públicas (JWKS) para validar los access tokens")
   ResponseEntity<Map<String, Object>> jwks() {
     return ResponseEntity.ok()
         .cacheControl(CacheControl.maxAge(Duration.ofMinutes(15)).cachePublic())

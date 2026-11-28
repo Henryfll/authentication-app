@@ -61,7 +61,7 @@ class AdminAuthorizationController {
               description = "URL del recurso creado",
               schema = @Schema(type = "string")))
   @ErrorResponses({ErrorCode.APPLICATION_NOT_FOUND, ErrorCode.PERMISSION_ALREADY_EXISTS})
-  @Operation(summary = "Crear un permiso")
+  @Operation(operationId = "createPermission", summary = "Crear un permiso")
   ResponseEntity<PermissionResponse> createPermission(
       @PathVariable UUID appId, @Valid @RequestBody CreatePermissionRequest request) {
     Permission permission =
@@ -75,7 +75,7 @@ class AdminAuthorizationController {
 
   @GetMapping("/permissions")
   @ErrorResponses({ErrorCode.APPLICATION_NOT_FOUND})
-  @Operation(summary = "Listar los permisos de una aplicación")
+  @Operation(operationId = "listPermissions", summary = "Listar los permisos de una aplicación")
   List<PermissionResponse> listPermissions(@PathVariable UUID appId) {
     return permissions.listPermissions(new ApplicationId(appId)).stream()
         .map(PermissionResponse::from)
@@ -97,7 +97,7 @@ class AdminAuthorizationController {
     ErrorCode.ROLE_ALREADY_EXISTS,
     ErrorCode.BUSINESS_RULE_VIOLATION
   })
-  @Operation(summary = "Crear un rol")
+  @Operation(operationId = "createRole", summary = "Crear un rol")
   ResponseEntity<RoleResponse> createRole(
       @PathVariable UUID appId, @Valid @RequestBody CreateRoleRequest request) {
     RoleView role =
@@ -115,14 +115,16 @@ class AdminAuthorizationController {
 
   @GetMapping("/roles")
   @ErrorResponses({ErrorCode.APPLICATION_NOT_FOUND})
-  @Operation(summary = "Listar los roles de una aplicación con sus permisos")
+  @Operation(
+      operationId = "listRoles",
+      summary = "Listar los roles de una aplicación con sus permisos")
   List<RoleResponse> listRoles(@PathVariable UUID appId) {
     return roles.listRoles(new ApplicationId(appId)).stream().map(RoleResponse::from).toList();
   }
 
   @GetMapping("/roles/{roleId}")
   @ErrorResponses({ErrorCode.APPLICATION_NOT_FOUND, ErrorCode.ROLE_NOT_FOUND})
-  @Operation(summary = "Obtener un rol con sus permisos")
+  @Operation(operationId = "getRole", summary = "Obtener un rol con sus permisos")
   RoleResponse getRole(@PathVariable UUID appId, @PathVariable UUID roleId) {
     return RoleResponse.from(roles.getRole(new ApplicationId(appId), new RoleId(roleId)));
   }
@@ -135,7 +137,9 @@ class AdminAuthorizationController {
     ErrorCode.BUSINESS_RULE_VIOLATION,
     ErrorCode.CONFLICT
   })
-  @Operation(summary = "Definir el conjunto completo de permisos de un rol")
+  @Operation(
+      operationId = "replaceRolePermissions",
+      summary = "Definir el conjunto completo de permisos de un rol")
   RoleResponse replaceRolePermissions(
       @PathVariable UUID appId,
       @PathVariable UUID roleId,

@@ -67,6 +67,7 @@ class AdminAccessController {
     ErrorCode.CONFLICT
   })
   @Operation(
+      operationId = "grantAccess",
       summary = "Conceder o actualizar el acceso de un usuario a una aplicación",
       description =
           "Reemplaza la configuración completa del acceso: estado (por defecto ACTIVE),"
@@ -98,7 +99,9 @@ class AdminAccessController {
 
   @GetMapping("/applications/{appId}/access/{userId}")
   @ErrorResponses({ErrorCode.APPLICATION_NOT_FOUND, ErrorCode.ACCESS_NOT_FOUND})
-  @Operation(summary = "Obtener el acceso de un usuario a una aplicación")
+  @Operation(
+      operationId = "getAccess",
+      summary = "Obtener el acceso de un usuario a una aplicación")
   AccessResponse get(@PathVariable UUID appId, @PathVariable UUID userId) {
     return AccessResponse.from(access.get(appId, userId));
   }
@@ -107,6 +110,7 @@ class AdminAccessController {
   @ApiResponse(responseCode = "204", description = "Acceso revocado (queda en estado REVOKED)")
   @ErrorResponses({ErrorCode.ACCESS_NOT_FOUND})
   @Operation(
+      operationId = "revokeAccess",
       summary = "Revocar el acceso",
       description = "El acceso queda en estado REVOKED; se puede volver a conceder con PUT.")
   ResponseEntity<Void> revoke(@PathVariable UUID appId, @PathVariable UUID userId) {
@@ -116,7 +120,9 @@ class AdminAccessController {
 
   @GetMapping("/applications/{appId}/access")
   @ErrorResponses({ErrorCode.APPLICATION_NOT_FOUND})
-  @Operation(summary = "Usuarios con acceso a una aplicación (paginado)")
+  @Operation(
+      operationId = "listApplicationAccess",
+      summary = "Usuarios con acceso a una aplicación (paginado)")
   PageResponse<AccessResponse> listByApplication(
       @PathVariable UUID appId,
       @RequestParam(required = false) AccessStatus status,
@@ -128,7 +134,9 @@ class AdminAccessController {
 
   @GetMapping("/users/{userId}/access")
   @ErrorResponses({ErrorCode.USER_NOT_FOUND})
-  @Operation(summary = "Accesos de un usuario a todas las aplicaciones")
+  @Operation(
+      operationId = "listUserAccess",
+      summary = "Accesos de un usuario a todas las aplicaciones")
   List<AccessResponse> listByUser(@PathVariable UUID userId) {
     return access.listByUser(userId).stream().map(AccessResponse::from).toList();
   }

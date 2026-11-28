@@ -28,6 +28,7 @@ class MeApplicationsController {
 
   @GetMapping("/api/v1/users/me/applications")
   @Operation(
+      operationId = "listMyApplications",
       summary = "Aplicaciones a las que el usuario puede entrar ahora",
       description = "Solo accesos activos, dentro de su vigencia, de aplicaciones activas.")
   List<MyApplicationResponse> list(@AuthenticationPrincipal Jwt jwt) {
