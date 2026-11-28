@@ -4,6 +4,7 @@ Servicio centralizado de autenticación y control de acceso a aplicaciones.
 
 - **Stack:** Java 25 · Spring Boot 4.0 · Maven · PostgreSQL 17 · Flyway
 - **Arquitectura:** hexagonal, por módulos (`user`, `apps`, `access`, `auth`). Detalle en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+- **Frontend:** requisitos y contrato de integración en [docs/FRONTEND_REQUIREMENTS.md](docs/FRONTEND_REQUIREMENTS.md).
 
 ## Requisitos
 
