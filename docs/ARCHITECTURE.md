@@ -39,6 +39,7 @@ Servicio centralizado de **identidad y control de acceso** que:
 | Tests | JUnit 5, Mockito, Testcontainers, MockMvc, ArchUnit | Integración contra una base de datos real y reglas de arquitectura |
 | Calidad | Spotless (Google Java Format), JaCoCo ≥ 80 % | Formato consistente y cobertura medida |
 | Entorno local | Docker Compose (PostgreSQL) | Levantar el entorno con un solo comando |
+| Despliegue | Imagen Docker multi-etapa + `compose.prod.yaml` de referencia | Imagen reproducible y sin privilegios. Ver [DEPLOYMENT.md](DEPLOYMENT.md) |
 | CI | GitHub Actions | Build, tests y cobertura en cada PR |
 
 > **Spring Authorization Server**: no se usa en v1. El contrato de tokens (`iss`, `aud`, `azp`, JWKS) se diseña compatible con OAuth2/OIDC para poder migrar en el futuro (SSO, `authorization_code` + PKCE) sin romper a los clientes.
@@ -451,7 +452,7 @@ Usa token buckets en memoria por clave, guardados en una caché acotada (Caffein
 | `refresh-by-ip` | IP | 120 / min |
 
 - **Límites por instancia:** con varias réplicas, cada una aplica sus propios límites. Para un clúster, el backend tendría que ser compartido (Bucket4j con Redis).
-- **IP de origen:** detrás de un proxy hay que configurar `server.forward-headers-strategy` para que la IP sea la del cliente real.
+- **IP de origen:** en producción `server.forward-headers-strategy` es `native` por defecto: se usa `X-Forwarded-For` solo si la petición llega de un proxy de confianza (redes privadas por defecto). Ver [DEPLOYMENT.md](DEPLOYMENT.md#proxy-inverso-y-tls).
 
 **Bloqueo progresivo de la cuenta**
 

@@ -86,6 +86,18 @@ Cada refresh token sirve una sola vez. Si se reutiliza, se cierra la sesión com
 
 El usuario cambia su contraseña con `PUT /api/v1/users/me/password` (`currentPassword`, `newPassword`), y un administrador puede restablecerla con `PUT /api/v1/admin/users/{id}/password`. Los eventos de seguridad se consultan en `GET /api/v1/admin/audit-events` (permiso `audit:read`).
 
+## Despliegue
+
+El servicio se despliega como una imagen de contenedor más PostgreSQL:
+
+```bash
+cp .env.example .env        # completar los valores
+docker build -t authentication-app:latest .
+docker compose -f compose.prod.yaml up -d
+```
+
+La guía completa (configuración obligatoria, clave de firma, primer administrador, proxy inverso y TLS, copias de seguridad y lista de comprobación) está en [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). `scripts/smoke-test.sh` verifica una imagen de extremo a extremo.
+
 ## Flujo de trabajo
 
 - `developer` es la rama de integración.

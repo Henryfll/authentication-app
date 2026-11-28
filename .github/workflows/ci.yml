@@ -36,3 +36,19 @@ jobs:
           name: jacoco-report
           path: target/site/jacoco/
           if-no-files-found: ignore
+
+  # Construye la imagen de contenedor y ejecuta la prueba de humo del despliegue
+  # (scripts/smoke-test.sh) para detectar problemas que los tests no cubren:
+  # el perfil `prod`, el usuario sin privilegios o el sistema de ficheros de solo lectura.
+  docker:
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t authentication-app:ci .
+
+      - name: Smoke test
+        run: IMAGE=authentication-app:ci scripts/smoke-test.sh
