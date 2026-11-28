@@ -1,5 +1,8 @@
 package com.henryfll.auth.apps.infrastructure.web;
 
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.NOT_REQUIRED;
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.henryfll.auth.apps.application.port.in.ManageClientsUseCase;
 import com.henryfll.auth.apps.application.port.in.ManageClientsUseCase.ClientWithSecret;
@@ -10,7 +13,12 @@ import com.henryfll.auth.apps.domain.ApplicationClient;
 import com.henryfll.auth.apps.domain.ApplicationClientId;
 import com.henryfll.auth.apps.domain.ApplicationId;
 import com.henryfll.auth.apps.domain.ClientPlatform;
+import com.henryfll.auth.shared.error.ErrorCode;
+import com.henryfll.auth.shared.web.ErrorResponses;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -43,6 +51,20 @@ class AdminClientController {
   }
 
   @PostMapping
+  @ApiResponse(
+      responseCode = "201",
+      description =
+          "Cliente registrado. Para clientes SERVICE incluye el secreto, que solo se muestra ahora",
+      headers =
+          @Header(
+              name = "Location",
+              description = "URL del recurso creado",
+              schema = @Schema(type = "string")))
+  @ErrorResponses({
+    ErrorCode.APPLICATION_NOT_FOUND,
+    ErrorCode.CLIENT_ID_ALREADY_EXISTS,
+    ErrorCode.INVALID_CLIENT_CONFIGURATION
+  })
   @Operation(
       summary = "Registrar un cliente (web, móvil o servicio)",
       description =
@@ -66,6 +88,7 @@ class AdminClientController {
   }
 
   @GetMapping
+  @ErrorResponses({ErrorCode.APPLICATION_NOT_FOUND})
   @Operation(summary = "Listar los clientes de una aplicación")
   List<ClientResponse> list(@PathVariable UUID appId) {
     return clients.list(new ApplicationId(appId)).stream()
@@ -74,6 +97,12 @@ class AdminClientController {
   }
 
   @PatchMapping("/{clientId}")
+  @ErrorResponses({
+    ErrorCode.APPLICATION_NOT_FOUND,
+    ErrorCode.CLIENT_NOT_FOUND,
+    ErrorCode.INVALID_CLIENT_CONFIGURATION,
+    ErrorCode.CONFLICT
+  })
   @Operation(
       summary = "Actualizar un cliente",
       description = "Solo se modifican los campos enviados. `client_id` y plataforma son fijos.")
@@ -95,6 +124,11 @@ class AdminClientController {
   }
 
   @PostMapping("/{clientId}/secret")
+  @ErrorResponses({
+    ErrorCode.APPLICATION_NOT_FOUND,
+    ErrorCode.CLIENT_NOT_FOUND,
+    ErrorCode.INVALID_CLIENT_CONFIGURATION
+  })
   @Operation(
       summary = "Regenerar el secreto de un cliente SERVICE",
       description = "El secreto anterior deja de ser válido inmediatamente.")
@@ -125,19 +159,19 @@ class AdminClientController {
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
   record ClientResponse(
-      UUID id,
-      UUID applicationId,
-      String clientId,
-      String name,
-      ClientPlatform platform,
-      boolean confidential,
-      List<String> allowedOrigins,
-      long accessTokenTtlSeconds,
-      long refreshTokenTtlSeconds,
-      ActivationStatus status,
-      Instant createdAt,
-      Instant updatedAt,
-      String clientSecret) {
+      @Schema(requiredMode = REQUIRED) UUID id,
+      @Schema(requiredMode = REQUIRED) UUID applicationId,
+      @Schema(requiredMode = REQUIRED) String clientId,
+      @Schema(requiredMode = REQUIRED) String name,
+      @Schema(requiredMode = REQUIRED) ClientPlatform platform,
+      @Schema(requiredMode = REQUIRED) boolean confidential,
+      @Schema(requiredMode = REQUIRED) List<String> allowedOrigins,
+      @Schema(requiredMode = REQUIRED) long accessTokenTtlSeconds,
+      @Schema(requiredMode = REQUIRED) long refreshTokenTtlSeconds,
+      @Schema(requiredMode = REQUIRED) ActivationStatus status,
+      @Schema(requiredMode = REQUIRED) Instant createdAt,
+      @Schema(requiredMode = REQUIRED) Instant updatedAt,
+      @Schema(requiredMode = NOT_REQUIRED) String clientSecret) {
 
     static ClientResponse from(ApplicationClient c, String plainSecret) {
       return new ClientResponse(

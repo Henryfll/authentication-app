@@ -1,7 +1,13 @@
 package com.henryfll.auth.auth.infrastructure.web;
 
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
+
 import com.henryfll.auth.auth.application.port.in.ManageSessionsUseCase;
+import com.henryfll.auth.shared.error.ErrorCode;
+import com.henryfll.auth.shared.web.ErrorResponses;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.Instant;
 import java.util.List;
@@ -52,6 +58,8 @@ class MeSessionsController {
   }
 
   @DeleteMapping("/{sessionId}")
+  @ApiResponse(responseCode = "204", description = "Sesión cerrada")
+  @ErrorResponses({ErrorCode.SESSION_NOT_FOUND})
   @Operation(summary = "Cerrar una sesión concreta (p. ej. un dispositivo perdido)")
   ResponseEntity<Void> revoke(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID sessionId) {
     sessions.revokeOwn(UUID.fromString(jwt.getSubject()), sessionId);
@@ -59,14 +67,14 @@ class MeSessionsController {
   }
 
   record SessionResponse(
-      UUID id,
-      String application,
-      String clientId,
-      String platform,
-      String deviceName,
-      String ipAddress,
-      String userAgent,
-      Instant createdAt,
-      Instant lastUsedAt,
-      boolean current) {}
+      @Schema(requiredMode = REQUIRED) UUID id,
+      @Schema(requiredMode = REQUIRED, nullable = true) String application,
+      @Schema(requiredMode = REQUIRED, nullable = true) String clientId,
+      @Schema(requiredMode = REQUIRED, nullable = true) String platform,
+      @Schema(requiredMode = REQUIRED, nullable = true) String deviceName,
+      @Schema(requiredMode = REQUIRED, nullable = true) String ipAddress,
+      @Schema(requiredMode = REQUIRED, nullable = true) String userAgent,
+      @Schema(requiredMode = REQUIRED) Instant createdAt,
+      @Schema(requiredMode = REQUIRED) Instant lastUsedAt,
+      @Schema(requiredMode = REQUIRED) boolean current) {}
 }

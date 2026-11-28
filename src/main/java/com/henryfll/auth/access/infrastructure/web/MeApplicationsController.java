@@ -1,7 +1,10 @@
 package com.henryfll.auth.access.infrastructure.web;
 
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
+
 import com.henryfll.auth.access.application.port.in.ListMyApplicationsUseCase;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
@@ -35,5 +38,9 @@ class MeApplicationsController {
         .toList();
   }
 
-  record MyApplicationResponse(UUID id, String code, String name, List<String> roles) {}
+  record MyApplicationResponse(
+      @Schema(requiredMode = REQUIRED) UUID id,
+      @Schema(requiredMode = REQUIRED) String code,
+      @Schema(requiredMode = REQUIRED) String name,
+      @Schema(requiredMode = REQUIRED) List<String> roles) {}
 }

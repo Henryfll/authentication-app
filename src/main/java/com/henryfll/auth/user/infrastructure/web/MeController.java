@@ -1,11 +1,17 @@
 package com.henryfll.auth.user.infrastructure.web;
 
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
+
+import com.henryfll.auth.shared.error.ErrorCode;
+import com.henryfll.auth.shared.web.ErrorResponses;
 import com.henryfll.auth.user.application.port.in.ChangePasswordUseCase;
 import com.henryfll.auth.user.application.port.in.FindUsersUseCase;
 import com.henryfll.auth.user.domain.User;
 import com.henryfll.auth.user.domain.UserId;
 import com.henryfll.auth.user.domain.UserStatus;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -52,6 +58,10 @@ class MeController {
   }
 
   @PutMapping("/password")
+  @ApiResponse(
+      responseCode = "204",
+      description = "Contraseña cambiada. Se cierran las demás sesiones del usuario")
+  @ErrorResponses({ErrorCode.INVALID_CURRENT_PASSWORD, ErrorCode.PASSWORD_POLICY_VIOLATION})
   @Operation(
       summary = "Cambiar la contraseña",
       description =
@@ -79,11 +89,11 @@ class MeController {
   }
 
   record MeResponse(
-      UUID id,
-      String email,
-      String firstName,
-      String lastName,
-      UserStatus status,
-      boolean emailVerified,
-      Instant createdAt) {}
+      @Schema(requiredMode = REQUIRED) UUID id,
+      @Schema(requiredMode = REQUIRED) String email,
+      @Schema(requiredMode = REQUIRED, nullable = true) String firstName,
+      @Schema(requiredMode = REQUIRED, nullable = true) String lastName,
+      @Schema(requiredMode = REQUIRED) UserStatus status,
+      @Schema(requiredMode = REQUIRED) boolean emailVerified,
+      @Schema(requiredMode = REQUIRED) Instant createdAt) {}
 }

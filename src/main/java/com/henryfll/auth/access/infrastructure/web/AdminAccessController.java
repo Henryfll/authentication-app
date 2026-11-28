@@ -1,13 +1,21 @@
 package com.henryfll.auth.access.infrastructure.web;
 
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
+
 import com.henryfll.auth.access.application.port.in.ManageAccessUseCase;
 import com.henryfll.auth.access.application.port.in.ManageAccessUseCase.AccessView;
 import com.henryfll.auth.access.application.port.in.ManageAccessUseCase.GrantAccessCommand;
 import com.henryfll.auth.access.application.port.in.ManageAccessUseCase.GrantResult;
 import com.henryfll.auth.access.domain.AccessStatus;
+import com.henryfll.auth.shared.error.ErrorCode;
 import com.henryfll.auth.shared.pagination.PageQuery;
+import com.henryfll.auth.shared.web.ErrorResponses;
 import com.henryfll.auth.shared.web.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -41,6 +49,23 @@ class AdminAccessController {
   }
 
   @PutMapping("/applications/{appId}/access/{userId}")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "201",
+        description = "Acceso concedido por primera vez",
+        headers =
+            @Header(
+                name = "Location",
+                description = "URL del acceso",
+                schema = @Schema(type = "string"))),
+    @ApiResponse(responseCode = "200", description = "El acceso ya existía y se ha actualizado")
+  })
+  @ErrorResponses({
+    ErrorCode.APPLICATION_NOT_FOUND,
+    ErrorCode.USER_NOT_FOUND,
+    ErrorCode.ROLE_NOT_FOUND,
+    ErrorCode.CONFLICT
+  })
   @Operation(
       summary = "Conceder o actualizar el acceso de un usuario a una aplicación",
       description =
@@ -72,12 +97,15 @@ class AdminAccessController {
   }
 
   @GetMapping("/applications/{appId}/access/{userId}")
+  @ErrorResponses({ErrorCode.APPLICATION_NOT_FOUND, ErrorCode.ACCESS_NOT_FOUND})
   @Operation(summary = "Obtener el acceso de un usuario a una aplicación")
   AccessResponse get(@PathVariable UUID appId, @PathVariable UUID userId) {
     return AccessResponse.from(access.get(appId, userId));
   }
 
   @DeleteMapping("/applications/{appId}/access/{userId}")
+  @ApiResponse(responseCode = "204", description = "Acceso revocado (queda en estado REVOKED)")
+  @ErrorResponses({ErrorCode.ACCESS_NOT_FOUND})
   @Operation(
       summary = "Revocar el acceso",
       description = "El acceso queda en estado REVOKED; se puede volver a conceder con PUT.")
@@ -87,6 +115,7 @@ class AdminAccessController {
   }
 
   @GetMapping("/applications/{appId}/access")
+  @ErrorResponses({ErrorCode.APPLICATION_NOT_FOUND})
   @Operation(summary = "Usuarios con acceso a una aplicación (paginado)")
   PageResponse<AccessResponse> listByApplication(
       @PathVariable UUID appId,
@@ -98,6 +127,7 @@ class AdminAccessController {
   }
 
   @GetMapping("/users/{userId}/access")
+  @ErrorResponses({ErrorCode.USER_NOT_FOUND})
   @Operation(summary = "Accesos de un usuario a todas las aplicaciones")
   List<AccessResponse> listByUser(@PathVariable UUID userId) {
     return access.listByUser(userId).stream().map(AccessResponse::from).toList();
@@ -109,22 +139,26 @@ class AdminAccessController {
       Instant validFrom,
       Instant validUntil) {}
 
-  record RoleSummary(UUID id, String code) {}
+  record RoleSummary(
+      @Schema(requiredMode = REQUIRED) UUID id, @Schema(requiredMode = REQUIRED) String code) {}
 
-  record ApplicationSummary(UUID id, String code, String name) {}
+  record ApplicationSummary(
+      @Schema(requiredMode = REQUIRED) UUID id,
+      @Schema(requiredMode = REQUIRED) String code,
+      @Schema(requiredMode = REQUIRED) String name) {}
 
   record AccessResponse(
-      UUID id,
-      UUID userId,
-      ApplicationSummary application,
-      AccessStatus status,
-      boolean effective,
-      Instant validFrom,
-      Instant validUntil,
-      List<RoleSummary> roles,
-      UUID grantedBy,
-      Instant createdAt,
-      Instant updatedAt) {
+      @Schema(requiredMode = REQUIRED) UUID id,
+      @Schema(requiredMode = REQUIRED) UUID userId,
+      @Schema(requiredMode = REQUIRED) ApplicationSummary application,
+      @Schema(requiredMode = REQUIRED) AccessStatus status,
+      @Schema(requiredMode = REQUIRED) boolean effective,
+      @Schema(requiredMode = REQUIRED) Instant validFrom,
+      @Schema(requiredMode = REQUIRED, nullable = true) Instant validUntil,
+      @Schema(requiredMode = REQUIRED) List<RoleSummary> roles,
+      @Schema(requiredMode = REQUIRED, nullable = true) UUID grantedBy,
+      @Schema(requiredMode = REQUIRED) Instant createdAt,
+      @Schema(requiredMode = REQUIRED) Instant updatedAt) {
 
     static AccessResponse from(AccessView view) {
       var grant = view.grant();
