@@ -17,3 +17,7 @@ target/
 .env
 *.env.local
 application-local-override.yaml
+
+# Claves de firma: nunca deben entrar en el repositorio
+*.pem
+jwt-private*

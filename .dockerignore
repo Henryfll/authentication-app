@@ -1,0 +1,23 @@
+# Control de versiones y CI
+.git
+.github
+
+# Resultados de compilación y de IDE
+target
+.idea
+.vscode
+*.iml
+
+# Secretos y configuración local: nunca deben entrar en la imagen
+.env
+.env.*
+*.pem
+*.key
+
+# No hacen falta para construir la imagen
+docs
+README.md
+compose*.yaml
+Dockerfile
+.dockerignore
+scripts
